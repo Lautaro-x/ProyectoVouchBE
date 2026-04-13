@@ -1,130 +1,286 @@
-1.	Idea inicial de web de crítica.
-La idea de la web es una plataforma social de críticas típica, pero con dos valores añadidos que creo que podrían volverla un producto competitivo.
-Empezaríamos por criticas de videojuegos por dos motivos, es el sector que mejor conozco y tengo una idea clara de a donde apuntar la publicidad agresiva inicial. Aunque si esta web genera ingresos y tengo la oportunidad de escalarla, se podría expandir a critica de cine, series y cosas así.
-Resumen:
-Primer valor añadido: nota ponderada de un producto:
-Normalmente las otras webs de críticas tienen una nota y listo, y puntúan igual a un juego de terror que a un fifa, nosotros esto lo cambiamos.
-Ejemplo: un Juego first person shooter. 
-Este tipo de juegos tendrá una serie de categorías a puntuar y cada categoría tendrá un peso ponderado según el genero de este juego. Este, por ejemplo, tendría gráficos con un peso del 100%, historia con un peso del 50%, calidad técnica 100%, etc.
-Con esto sacamos la nota de un usuario.
+# Vouch — Backend
 
-Gracias a esta nota podemos sacar 2 valoraciones: Nota media de todos los usuarios y crítica especializada.
-Segundo valor añadido: Nota de críticos de confianza.
-Esta es la parte donde se añade el factor social, la idea es que los usuarios puedan seguirse entre ellos, de esta forma un usuario puede obtener la nota media de aquellos otros usuarios cuyo criterio respeten, es decir, un follow de toda la vida.
- 
-2.	Resumen técnico.
-2.1. El Motor de Evaluación (Algoritmo de Puntuación)
-El núcleo de la plataforma no es una nota simple, sino un cálculo multivariable.
-•	Categorización por Género: El sistema detecta el género (ej. Survival Horror) y asigna un peso específico a categorías predefinidas.
-•	Ponderación Dinámica: * Categoría A (Miedo): 40% de la nota.
-o	Categoría B (Narrativa): 30% de la nota.
-o	Categoría C (Jugabilidad): 30% de la nota.
-•	Conversión al Sistema Americano (por ejemplo): El resultado numérico final se traduce automáticamente a una escala de letras ($A+, A, A-, B... F$). Esto es porque la nota numérica ha quedado muy desprestigiada por culpa justamente de estas otras webs.
-2.2. El Modelo de Triple Validación (Interfaz de Usuario)
-Cada producto mostrará tres calificaciones simultáneas para ofrecer una perspectiva 360°.
-•	Global Score (La Masa): Media aritmética de todos los usuarios de la plataforma. Útil para medir la popularidad general.
-•	Pro Score (La Crítica): Media de medios especializados y críticos certificados (estilo Metacritic/Rotten Tomatoes). Aporta el rigor académico.
-•	Trust Score (Tu Círculo): La nota media exclusiva de los usuarios a los que sigues. Es el valor diferencial, ya que elimina el ruido de desconocidos, el review bombing y se basa en afinidad.
-2.3. Capa Social: El "Crítico de Confianza"
-A diferencia de un "Follow" tradicional, aquí el seguimiento tiene un impacto matemático.
-•	Niveles de Usuario: Los usuarios pueden ser "Entusiastas" o "Expertos" según la calidad y cantidad de sus críticas detalladas.
-•	Filtros de Afinidad: El sistema sugerirá nuevos críticos para seguir basándose en la coincidencia de notas pasadas, por ejemplo: "Este usuario puntuó igual que tú estos 5 juegos".
-•	Validación de Críticas: Posibilidad de puntuar la utilidad de una crítica, lo que aumenta el peso de ese usuario en la media global. Un ejemplo de uso: si un usuario tiene un 70% de dislikes en críticas, ese usuario no se toma en cuenta para la media global.
-2.4. Estructura de Datos y Base de Datos
-Para que esto funcione, necesito una arquitectura capaz de cruzar muchas relaciones.
-•	Entidades: Usuario, Producto, Crítica, Categoría, Seguimiento…
-•	Atributos de Producto (importante): Metadatos (año, director/estudio, género) que disparan las plantillas de categorías.
-•	Histórico de Ponderaciones: Registro de cómo han evolucionado los pesos de cada categoría según el feedback de la comunidad.
-2.5. Estrategia de Retención y Gamificación
-Cómo incentivar que el usuario complete las notas por categorías en lugar de solo poner una letra.
-•	Progreso de Perfil: "Has analizado el 80% de la narrativa en el género RPG".
-•	Recompensas por Precisión: Si tu nota individual se acerca mucho a la media de confianza o especializada a largo plazo, obtienes el badge de "Crítico Analítico".
-•	Comparativas: Gráficos de radar que comparan tu puntuación por categorías frente a la global o distintas comunidades de usuarios (esto último tendría que darle una vuelta, no tiene mucho sentido crear una comunidad para hacer una nota extra de un juego según una comunidad concreta).
-________________________________________
-Resumen de flujo para el usuario:
-Busca un juego (ej. Resident Evil).
-Visualiza que la Crítica le da una B, el Mundo una C, pero sus amigos una A-.
-Decide consumirlo.
-Puntúa rellenando los deslizadores de categorías (Miedo, Arte, etc.).
-Publica y su nota actualiza automáticamente el Trust Score de sus propios seguidores.
- 
-3.	Monetización
-Este modelo de plataforma ofrece varias vías de monetización que aprovechan la segmentación de datos y la autoridad de los "críticos de confianza".
-3.1. Afiliación y Compra Directa
-Dado que el sistema de puntuación es granular (por categorías como "nivel de miedo"), podemos dirigir al usuario al producto exacto que busca.
-•	Marketplace de referidos: Botones de compra en Amazon, Steam, Epic Games Store o suscripciones a plataformas de streaming (Netflix, HBO) tras una crítica positiva.
-•	Venta de claves: Integración con tiendas de códigos de juegos o merchandising relacionado con la obra analizada.
-3.2. Publicidad Segmentada por "Sentimiento"
-A diferencia de la publicidad genérica, se puede vender espacios basados en las preferencias específicas de los usuarios:
-•	Marcas: Si un usuario valora alto la "Jugabilidad" y el "Nivel de tensión", puedes mostrar anuncios de periféricos (ratones, auriculares) o lanzamientos de terror específicos.
-•	Publicidad Nativa: Promoción de tráilers o demos de juegos/series que encajen en el perfil de "confianza" del usuario.
-3.3. Modelo Premium (B2C) 
-Funciones avanzadas para los usuarios más activos/de pago. No veo el proyecto para tener un modelo de pago la verdad, preferiría evitar estas cosas, pero bueno, dejo estas características para estudiarlas igualmente:
-•	Análisis Predictivo: "Basándonos en tus críticos de confianza, hay un 90% de probabilidad de que este juego te encante". (Esto tengo que estudiarlo porque no tengo ni idea de cómo se hace XD)
-•	Personalización estética: Perfiles destacados, insignias de crítico verificado y eliminación de anuncios. (No lo veo necesario)
-•	Acceso anticipado: Posibilidad de participar en sorteos de claves para realizar las primeras críticas de la plataforma. (Tampoco lo veo)
-3.4. Venta de Datos y Analítica (B2B)
-Esta es la fuente de ingresos más potente que veo debido a la ponderación por categorías:
-•	Informes para Desarrolladores/Productoras: Venta de métricas detalladas sobre qué falla en un producto. (Ej: "Tu juego tiene un 9 de media en arte, pero un 3 en jugabilidad para el sector de críticos de confianza").
-•	Identificación de Micro-influencers: Ayudar a las empresas a identificar qué usuarios tienen mayor impacto real en las decisiones de compra de otros (los "críticos de confianza" con más seguidores). El problema de esto es que creo que es mas rentable que esta información sea pública. Como un ranking de críticos más seguidos y así.
-3.5. Sistema de Propinas o Mecenazgo
-•	Suscripciones a críticos: Permitir que los usuarios paguen una suscripción mensual a sus "críticos de confianza" favoritos para acceder a análisis más profundos o contenido exclusivo, quedándote tú con una comisión por transacción.
- 
-4.	Posible hoja de ruta
-4.1. Fase de Desarrollo: El MVP "Lean"
-No hacer todo de todos los géneros y todos los juegos de golpe.
-•	Infraestructura Zero-Cost: Empezar con una instancia gratuita de Oracle Cloud o un plan mínimo en Hetzner ($5/mes). Usar Docker para facilitar la migración futura.
-•	Enfoque de Nicho: (ej. solo Videojuegos) donde la ponderación por categorías sea muy relevante. Esto te permite tener una base de datos más pequeña y controlada.
-•	Automatización de Datos: Usar APIs gratuitas para no cargar datos a mano:
-o	IGDB (Twitch/Amazon): Para videojuegos.
-o	TMDB: Para cine y series.
-•	Carga de Notas Especializadas: Programar un scraper sencillo para obtener las notas de Metacritic/OpenCritic y popular el "Pro Score" inicialmente, ya habrá datos para generar nuestras propias notas.
-4.2. El Gancho para Críticos y Creadores
-A un creador de contenido no le importa la web, le importa su marca. Debemos ofrecerles una utilidad que no tengan en Twitter.
-•	Widget de Crítico: Crear un "componente" que el crítico pueda embeber en su blog o un enlace con una imagen generada dinámicamente (vía Laravel/Spatie Browsershot) que resuma su nota en un gráfico visualmente atractivo para compartir en redes sociales.
-•	Perfil de "Autoridad": Ofrecer a los primeros creadores el rango de "Verificado" y permíteles que su nota influya más en la media global.
-•	El "Efecto Comunidad": Envía mensajes directos a críticos medianos (no a los gigantes) diciéndoles: "He creado esta herramienta porque me gusta cómo analizas la jugabilidad, y aquí tu nota pesa más que la de la prensa generalista".
-4.3. Estrategia de Monetización Inmediata (Cubrir Gastos)
-Para que la web se pague sola desde el mes 1:
-•	Afiliación Agresiva: Laravel tiene paquetes excelentes para manejar APIs de Amazon y eBay. Cada ficha de producto debe tener el botón "Comprar" con tu ID de afiliado.
-•	AdSense / Carbon Ads: Coloca publicidad no intrusiva. Mas o menos sé configurar Carbon Ads y es ideal porque es estética y paga bien por tráfico tech/geek.
-•	Patreon/Ko-fi Integrado: Si un usuario es un "Crítico de Confianza" con muchos seguidores o le ponemos el “verificado”, podemos permítele poner su botón de donación en su perfil a cambio de una pequeña comisión (1-2%) para la plataforma. (Si esto se puede automatizar, que creo que sí, lo hacemos, sino, que se ponga en cualquier perfil de usuario sin comisión y nos quitamos de líos).
-4.4. Hoja de Ruta de Lanzamiento
-Paso 1:  El Core
-•	Backend (Laravel): Auth, CRUD de críticas, Lógica de ponderación.
-•	Frontend (Angular): Buscador de productos y sistema de "sliders" para puntuar categorías.
-Paso 2: El Factor Social
-•	Sistema de Follow (Críticos de confianza).
-•	Cálculo de la "Triple Nota" en tiempo real.
-•	Generación de imágenes para compartir (OpenGraph dinámico).
-Paso 3: Tracción
-•	Lanzamiento en Product Hunt y subreddits específicos (ej. r/gaming, r/horror).
-•	Contactar con micro-influencers ofreciéndoles el perfil verificado.
- 
-5.	Ideas para reducir costes, servicios para influencers y mejoras de rendimiento, (revisar activamente)
-•	En lugar de procesar las medias cada vez que alguien carga la página, usar Laravel Queues y Redis para recalcular las notas de forma asíncrona cuando se publica una crítica, y guarda el resultado en una tabla de caché. Esto reducirá drásticamente el consumo de CPU.
-•	Decirle a Franco que me haga el marketing de esta movida y cuando empiece a generar beneficios vender la web, irme a las maldivas y desaparecer con toda la guita.
-Para atraer influencers sin presupuesto, debemos pasar de ser una "web donde ellos escriben" a ser una "herramienta que les ahorra trabajo o les hace quedar como expertos". El influencer no quiere trabajar para mí; quiere que la plataforma trabaje para su marca personal.
-1. El "Kit de Prensa" Automático (Shareability)
-Un influencer vive de la imagen. Si les das contenido visual listo para sus redes, te promocionarán sin darse cuenta.
-•	Generador de Infografías: Crea un sistema que, al publicar su crítica, genere una imagen atractiva (formato Story de Instagram y post de Twitter) con su avatar, su nota con el sistema A-F y el gráfico de radar de las categorías (Arte, Narrativa, etc.).
-•	Ranking Personal Personalizado: Un enlace tipo tuweb.com/u/influencer/top-2026 que muestre sus mejores notas del año con un diseño impecable que puedan poner en su "Link in bio".
-2. "Curador de Confianza" como Título de Valor
-•	En lugar de un simple verificado, crear un sistema de "Ligas de Críticos". Si un influencer es conocido por ser muy duro, darle el título de "Crítico de Hierro".
-•	Permitirles crear listas colaborativas con su comunidad. El influencer puede decir en su stream: "Entrad en esta lista y vamos a puntuar todos el nivel de miedo de este juego para ver si nuestra Media de Confianza supera a la de la Prensa". Esto genera contenido para sus directos.
-3. SEO de Marca Personal (El perfil como CV)
-•	Muchos críticos de YouTube o Twitch no tienen una base de datos organizada de lo que han jugado o visto. Podemos ofréceles que tu web sea su archivo histórico.
-•	Optimiza los perfiles para que, cuando alguien busque en Google "Críticas de [Nombre del Influencer]", tu página aparezca entre los primeros resultados con un diseño mucho más profesional que una lista de vídeos de YouTube.
-4. El "Desafío a la Prensa" (Narrativa de Conflicto)
-•	A los creadores les encanta la narrativa de "nosotros contra el sistema".
-•	Tu sistema de Triple Nota es perfecto para esto. Puedes enviarles un mensaje diciendo: "Oye, he visto que en tu vídeo pones a parir este juego que en Metacritic tiene un 90. He creado una web donde tu nota y la de tu comunidad pueden crear una media real que contraste con la prensa profesional".
-Esto les da un argumento para un vídeo: "Por qué mi comunidad y yo tenemos razón frente a la crítica especializada (Datos dentro)".
-5. Acceso a Datos Exclusivos (Insights)
-•	Puedo darles acceso a un panel de control (Dashboard) que nadie más tiene.
-"Mira, [Nombre], el 80% de tus seguidores de confianza coinciden en que la narrativa de este juego es una 'D', a pesar de que el arte es una 'A'". Darles datos de crítica de sus seguidores que puedan usar, por ejemplo, datos estadísticos que respalden sus opiniones subjetivas.
-6. Sistema de "Widget para Directos"
-•	Desarrollar un pequeño widget (una URL para OBS) que el streamer pueda poner en su directo. Cuando el streamer cambia su nota en tu web, el widget se actualiza en pantalla mostrando: "Mi nota actual: B+ | Nota de mi comunidad: A-".
-Esto integra tu plataforma directamente en su flujo de trabajo de streaming.
-7. Beta Privada "Founder"
-•	No abrir la web a todo el mundo de golpe. Crea una landing page de "Acceso Anticipado" y contactar con 5-10 micro-influencers de un nicho muy específico (ej. amantes de los JRPG).
-Y decirles que queremos que ellos diseñen las categorías de ponderación para ese género. Sentirse "arquitectos" de la plataforma los vincula emocionalmente al éxito del proyecto.
+API REST del proyecto Vouch, una plataforma social de críticas ponderadas para videojuegos.
+
+---
+
+## Stack
+
+| Tecnología | Versión | Rol |
+|---|---|---|
+| PHP | 8.5.5 | Lenguaje |
+| Laravel | 10.10 | Framework |
+| MySQL | — | Base de datos (vía Laragon) |
+| Laravel Sanctum | 3.3 | Autenticación por tokens |
+| GuzzleHTTP | 7.x | Cliente HTTP |
+| PHPUnit | 10.1 | Testing |
+
+---
+
+## Arquitectura general
+
+```
+app/
+├── Http/
+│   └── Controllers/
+│       └── AuthController.php
+├── Models/
+│   ├── User.php
+│   ├── Genre.php
+│   ├── Category.php
+│   ├── Platform.php
+│   ├── Product.php
+│   ├── GameDetail.php
+│   ├── Review.php
+│   ├── ReviewScore.php
+│   ├── ProductScore.php
+├── Services/
+│   └── ScoringService.php
+routes/
+└── api.php
+database/
+└── migrations/
+config/
+├── cors.php
+└── services.php
+```
+
+---
+
+## Configuración local
+
+### Requisitos
+- Laragon con PHP 8.5.5 y MySQL activos
+- Composer 2.5.7
+
+### Variables de entorno (`.env`)
+```env
+APP_URL=http://proyectovouchbe.local
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=proyectovouch
+DB_USERNAME=root
+DB_PASSWORD=
+
+GOOGLE_CLIENT_ID=tu_google_client_id
+```
+
+### Instalación
+```bash
+composer install
+php artisan key:generate
+php artisan migrate
+```
+
+---
+
+## Características implementadas
+
+### Auth — Google OAuth + Sanctum
+
+**Librería:** Laravel HTTP Client (nativa), Laravel Sanctum 3.3
+
+**Flujo:**
+```
+Frontend obtiene credential de Google (JWT)
+  → POST /api/auth/google { credential }
+    → Backend verifica el token contra Google tokeninfo API
+      → Crea o actualiza el usuario en base de datos
+        → Emite token Sanctum
+          → Devuelve { token, user }
+```
+
+**Decisión de arquitectura:** Se eligió el flujo frontend-iniciado (Google Identity Services) en lugar del flujo de redirección tradicional porque:
+- No requiere redirect URIs configurados
+- El token nunca viaja en la URL
+- Mejor UX (popup en lugar de redirección)
+- Es el estándar actual de Google
+
+**Verificación del token:** Se llama a `https://oauth2.googleapis.com/tokeninfo?id_token={credential}` desde el backend para verificar la autenticidad del token y validar que el `aud` (audience) coincide con nuestro `GOOGLE_CLIENT_ID`. Sin librerías externas adicionales.
+
+**Gestión de usuarios:** Si el usuario ya existe por email o google_id, se actualiza. Si no, se crea. Al hacer login se revocan todos los tokens anteriores y se emite uno nuevo.
+
+**Endpoint:**
+```
+POST /api/auth/google
+Body: { credential: string }
+Response: { token: string, user: User }
+```
+
+**Endpoint protegido (ejemplo):**
+```
+GET /api/user
+Header: Authorization: Bearer {token}
+```
+
+---
+
+## Base de datos
+
+### Tabla `users`
+| Campo | Tipo | Descripción |
+|---|---|---|
+| id | bigint | PK |
+| google_id | string nullable unique | ID de cuenta Google |
+| name | string | Nombre |
+| email | string unique | Email |
+| avatar | string nullable | URL de foto de perfil |
+| password | string nullable | Nullable porque usamos OAuth |
+| email_verified_at | timestamp nullable | — |
+| remember_token | string nullable | — |
+| created_at / updated_at | timestamp | — |
+
+---
+
+---
+
+## Motor de puntuación (`ScoringService`)
+
+El núcleo diferenciador de la plataforma. Calcula puntuaciones ponderadas por categoría según el género del producto.
+
+### Fórmula de nota ponderada
+
+```
+nota = Σ(puntuación_categoría × peso_categoría) / Σ(pesos)
+```
+
+Los pesos se definen en `genre_category.weight` (decimal 0-1). Al dividir por la suma de pesos, la nota siempre queda en escala 0-100 independientemente de cuántas categorías tenga el género.
+
+### Escala de letras
+
+| Rango | Letra | Rango | Letra |
+|---|---|---|---|
+| 97-100 | A+ | 77-79 | C+ |
+| 93-96 | A | 73-76 | C |
+| 90-92 | A- | 70-72 | C- |
+| 87-89 | B+ | 67-69 | D+ |
+| 83-86 | B | 63-66 | D |
+| 80-82 | B- | 60-62 | D- |
+| — | — | 0-59 | F |
+
+### Triple nota por producto
+
+| Score | Quién contribuye | Dónde se guarda |
+|---|---|---|
+| `global_score` | Todos los usuarios | `product_scores` |
+| `pro_score` | Usuarios con role `critic` o `admin` | `product_scores` |
+| `trust_score` | Usuarios a los que sigues | Calculado en tiempo real |
+
+El Trust Score no se cachea porque es personal para cada usuario. Global y Pro se recalculan y cachean en `product_scores` al publicar cada crítica.
+
+---
+
+## Base de datos
+
+### Convención de nombres
+- Tablas regulares: PascalCase plural (`Genres`, `Products`)
+- Tablas cruzadas: `A_x_B` singular (`Genre_x_Category`, `Product_x_Platform`)
+- Excepción: `Follows` (auto-referencial Users–Users)
+- Campos: snake_case minúscula
+
+### Esquema completo
+
+```
+Users
+  id, name, email, password (nullable), google_id (hidden)
+  avatar, role (user|critic|admin), badges (JSON), timestamps
+
+Genres                      Categories
+  id, name, slug              id, name, slug, timestamps
+       └──── Genre_x_Category ────┘
+               genre_id, category_id
+               weight (decimal 0.00–1.00), timestamps
+
+Platforms
+  id, name, slug, type (console|pc|streaming), timestamps
+
+Products
+  id, type (game|movie|series), genre_id
+  title, slug, description
+  cover_image (URL externa; local si existe public/cover_images/{slug}.ext)
+  timestamps
+       │
+       ├── Product_x_Platform (cruzada)
+       │     product_id, platform_id
+       │     release_year, purchase_url
+       │
+       ├── GameDetails
+       │     product_id (PK), igdb_id, developer, publisher
+       │
+       ├── ProductScores
+       │     product_id (PK), global_score (int), pro_score (int)
+       │     updated_at
+       │
+       └── Reviews ───────────────────── Users
+             id, user_id, product_id
+             body (varchar 255, nullable, sin links)
+             weighted_score (int 0–100), letter_grade
+             timestamps · unique(user_id, product_id)
+               │
+               └── Review_x_Category (cruzada)
+                     review_id, category_id
+                     score (tinyInt 0–10)
+
+Follows (cruzada Users–Users)
+  follower_id → users.id
+  followed_id → users.id
+  created_at
+```
+
+### Fórmula de score
+
+Los scores de categoría (0–10) se ponderan y escalan a 0–100:
+```
+weighted_score = round( Σ(score × weight) / Σ(weights) × 10 )
+```
+
+---
+
+## Roadmap
+
+### Fase 1 — Core (en progreso)
+- [x] Autenticación Google OAuth
+- [ ] Rediseño y creación de migraciones (esquema v2)
+- [ ] Modelos y relaciones Eloquent
+- [ ] Endpoints CRUD: Products, Genres, Categories, Platforms
+- [ ] Endpoint de Reviews con cálculo de score ponderado
+- [ ] Integración IGDB API (metadatos de juegos)
+
+### Fase 2 — Capa social
+- [ ] Sistema de Follow
+- [ ] Trust Score (media de usuarios seguidos, tiempo real)
+- [ ] Validación de críticas (útil / no útil)
+- [ ] Niveles de usuario (Entusiasta / Experto)
+
+### Fase 3 — Extensibilidad
+- [ ] MovieDetails (director, imdb_id, duration)
+- [ ] SeriesDetails (director, imdb_id, seasons)
+
+### Fase 4 — Optimización
+- [ ] Job diario de snapshot histórico de ProductScores (no trigger)
+- [ ] Laravel Queues para recálculo asíncrono de puntuaciones
+- [ ] Caché de puntuaciones (Redis)
+- [ ] Scraper de Pro Scores (Metacritic/OpenCritic)
+
+---
+
+## TODO
+
+- [ ] Definir y crear todas las migraciones del esquema v2
+- [ ] Crear modelos: Platform, GameDetails, y actualizar Product
+- [ ] Controllers: GenreController, CategoryController, ProductController, PlatformController, ReviewController
+- [ ] Sistema de puntuación ponderada: Σ(score×weight)/Σ(weights) → letter grade
+- [ ] Triple score por producto: Global (todos), Pro (critics/admin), Trust (seguidos, tiempo real)
+- [ ] Endpoint Trust Score: calculado en tiempo real según follows del usuario autenticado
+- [ ] Sistema de roles: user, critic, admin — Pro Score solo cuenta critics y admins
+- [ ] Sistema de Follow entre usuarios
+- [ ] IGDB API: integración para autocompletar metadatos de juegos
+- [ ] Soporte multi-plataforma: consolas, PC, streaming con fecha de salida y link por plataforma
+- [ ] Extensibilidad a películas y series (MovieDetails, SeriesDetails)
+- [ ] Job diario: snapshot histórico de ProductScores por día
+- [ ] Validación de críticas (útil / no útil)
+- [ ] Niveles de usuario (Entusiasta / Experto)
+- [ ] Laravel Queues + Redis para recálculo y caché de puntuaciones
+- [ ] Scraper de Pro Scores (Metacritic / OpenCritic)
