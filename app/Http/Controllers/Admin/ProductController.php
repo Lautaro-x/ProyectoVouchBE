@@ -13,11 +13,17 @@ class ProductController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $allowed = ['id', 'title', 'type'];
+        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'title';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = min((int) $request->get('per_page', 25), 100);
+
         $products = Product::with(['genre', 'gameDetails', 'platforms', 'score'])
+            ->when($request->search, fn($q) => $q->where('title', 'like', "%{$request->search}%"))
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->when($request->genre_id, fn($q) => $q->where('genre_id', $request->genre_id))
-            ->orderBy('title')
-            ->paginate(20);
+            ->orderBy($sortBy, $sortDir)
+            ->paginate($perPage);
 
         return response()->json($products);
     }

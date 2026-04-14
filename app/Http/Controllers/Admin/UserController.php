@@ -11,11 +11,20 @@ class UserController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $allowed = ['id', 'name', 'email', 'created_at'];
+        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = min((int) $request->get('per_page', 25), 100);
+
         $users = User::select(['id', 'name', 'email', 'role', 'avatar', 'badges', 'banned_at', 'ban_reason', 'created_at'])
             ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))
             ->when($request->role, fn($q) => $q->where('role', $request->role))
-            ->orderByDesc('created_at')
-            ->paginate(20);
+            ->when($request->search, fn($q) => $q->where(function ($inner) use ($request) {
+                $inner->where('name', 'like', "%{$request->search}%")
+                      ->orWhere('email', 'like', "%{$request->search}%");
+            }))
+            ->orderBy($sortBy, $sortDir)
+            ->paginate($perPage);
 
         return response()->json($users);
     }

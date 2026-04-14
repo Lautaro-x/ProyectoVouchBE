@@ -21,9 +21,22 @@ API REST del proyecto Vouch, una plataforma social de críticas ponderadas para 
 
 ```
 app/
+├── Console/Commands/
+│   └── IgdbImportTopCommand.php
 ├── Http/
-│   └── Controllers/
-│       └── AuthController.php
+│   ├── Controllers/
+│   │   ├── AuthController.php
+│   │   ├── IgdbController.php
+│   │   └── Admin/
+│   │       ├── GenreController.php
+│   │       ├── CategoryController.php
+│   │       ├── PlatformController.php
+│   │       ├── ProductController.php
+│   │       ├── ReviewController.php
+│   │       └── UserController.php
+│   └── Middleware/
+│       ├── AdminMiddleware.php
+│       └── CheckBanned.php
 ├── Models/
 │   ├── User.php
 │   ├── Genre.php
@@ -33,16 +46,16 @@ app/
 │   ├── GameDetail.php
 │   ├── Review.php
 │   ├── ReviewScore.php
-│   ├── ProductScore.php
-├── Services/
-│   └── ScoringService.php
+│   └── ProductScore.php
+└── Services/
+    ├── ScoringService.php
+    ├── IgdbService.php
+    └── ProductImportService.php
 routes/
 └── api.php
 database/
-└── migrations/
-config/
-├── cors.php
-└── services.php
+├── migrations/
+└── seeders/
 ```
 
 ---
@@ -65,13 +78,16 @@ DB_USERNAME=root
 DB_PASSWORD=
 
 GOOGLE_CLIENT_ID=tu_google_client_id
+
+TWITCH_CLIENT_ID=tu_twitch_client_id
+TWITCH_CLIENT_SECRET=tu_twitch_client_secret
 ```
 
 ### Instalación
 ```bash
 composer install
 php artisan key:generate
-php artisan migrate
+php artisan migrate --seed
 ```
 
 ---
@@ -92,63 +108,43 @@ Frontend obtiene credential de Google (JWT)
           → Devuelve { token, user }
 ```
 
-**Decisión de arquitectura:** Se eligió el flujo frontend-iniciado (Google Identity Services) en lugar del flujo de redirección tradicional porque:
-- No requiere redirect URIs configurados
-- El token nunca viaja en la URL
-- Mejor UX (popup en lugar de redirección)
-- Es el estándar actual de Google
+**Decisión de arquitectura:** Se eligió el flujo frontend-iniciado (Google Identity Services) en lugar del flujo de redirección tradicional porque no requiere redirect URIs configurados, el token nunca viaja en la URL, y es el estándar actual de Google.
 
-**Verificación del token:** Se llama a `https://oauth2.googleapis.com/tokeninfo?id_token={credential}` desde el backend para verificar la autenticidad del token y validar que el `aud` (audience) coincide con nuestro `GOOGLE_CLIENT_ID`. Sin librerías externas adicionales.
+**Verificación del token:** Se llama a `https://oauth2.googleapis.com/tokeninfo?id_token={credential}` desde el backend para verificar la autenticidad del token y validar que el `aud` coincide con `GOOGLE_CLIENT_ID`. Sin librerías externas adicionales.
 
 **Gestión de usuarios:** Si el usuario ya existe por email o google_id, se actualiza. Si no, se crea. Al hacer login se revocan todos los tokens anteriores y se emite uno nuevo.
 
-**Endpoint:**
+**Endpoints:**
 ```
-POST /api/auth/google
-Body: { credential: string }
-Response: { token: string, user: User }
-```
-
-**Endpoint protegido (ejemplo):**
-```
-GET /api/user
-Header: Authorization: Bearer {token}
+POST /api/auth/google       Body: { credential }  → { token, user }
+GET  /api/user              Header: Authorization: Bearer {token}
 ```
 
 ---
 
-## Base de datos
+### Middleware de seguridad
 
-### Tabla `users`
-| Campo | Tipo | Descripción |
-|---|---|---|
-| id | bigint | PK |
-| google_id | string nullable unique | ID de cuenta Google |
-| name | string | Nombre |
-| email | string unique | Email |
-| avatar | string nullable | URL de foto de perfil |
-| password | string nullable | Nullable porque usamos OAuth |
-| email_verified_at | timestamp nullable | — |
-| remember_token | string nullable | — |
-| created_at / updated_at | timestamp | — |
+**`AdminMiddleware`** (`app/Http/Middleware/AdminMiddleware.php`)
+Verifica que el usuario autenticado tenga `role === 'admin'`. Devuelve 403 si no.
+Registrado como `admin` en `bootstrap/app.php`.
+
+**`CheckBanned`** (`app/Http/Middleware/CheckBanned.php`)
+Verifica que el usuario no tenga `banned_at` seteado. Devuelve 403 con mensaje de suspensión. Aplicado a todas las rutas protegidas con alias `not.banned`.
 
 ---
 
----
-
-## Motor de puntuación (`ScoringService`)
+### Motor de puntuación (`ScoringService`)
 
 El núcleo diferenciador de la plataforma. Calcula puntuaciones ponderadas por categoría según el género del producto.
 
-### Fórmula de nota ponderada
-
+**Fórmula:**
 ```
-nota = Σ(puntuación_categoría × peso_categoría) / Σ(pesos)
+weighted_score = round( Σ(score × weight) / Σ(weights) × 10 )
 ```
 
-Los pesos se definen en `genre_category.weight` (decimal 0-1). Al dividir por la suma de pesos, la nota siempre queda en escala 0-100 independientemente de cuántas categorías tenga el género.
+Los scores de categoría son enteros 0–10. Los pesos se definen en `Genre_x_Category.weight` (decimal 0.00–1.00). El resultado final es un entero 0–100.
 
-### Escala de letras
+**Escala de letras:**
 
 | Rango | Letra | Rango | Letra |
 |---|---|---|---|
@@ -160,15 +156,80 @@ Los pesos se definen en `genre_category.weight` (decimal 0-1). Al dividir por la
 | 80-82 | B- | 60-62 | D- |
 | — | — | 0-59 | F |
 
-### Triple nota por producto
+**Triple nota por producto:**
 
 | Score | Quién contribuye | Dónde se guarda |
 |---|---|---|
-| `global_score` | Todos los usuarios | `product_scores` |
-| `pro_score` | Usuarios con role `critic` o `admin` | `product_scores` |
+| `global_score` | Todos los usuarios | `ProductScores` |
+| `pro_score` | Usuarios con role `critic` o `admin` | `ProductScores` |
 | `trust_score` | Usuarios a los que sigues | Calculado en tiempo real |
 
-El Trust Score no se cachea porque es personal para cada usuario. Global y Pro se recalculan y cachean en `product_scores` al publicar cada crítica.
+El Trust Score no se cachea porque es personal para cada usuario. Global y Pro se recalculan y cachean en `ProductScores` al publicar cada crítica y al banear/desbanear reseñas. Las reseñas baneadas se excluyen del cálculo.
+
+---
+
+### Integración IGDB (`IgdbService` + `ProductImportService`)
+
+**Autenticación:** Twitch OAuth con Client Credentials. El token se cachea durante 50 días para evitar requests repetidos.
+
+**`IgdbService`** — métodos principales:
+- `search(string $query)` — busca juegos por nombre
+- `find(int $igdbId)` — obtiene un juego por ID
+- `topByGenre(int $igdbGenreId, int $limit)` — top juegos de un género
+- `coverUrl(array $cover, string $size)` — construye URL de portada (formato `t_cover_big`)
+
+**`ProductImportService`** — método `importGame(array $igdbGame)`:
+- Crea o actualiza `Product` + `GameDetail`
+- Resuelve compañías (developer/publisher) desde el campo `involved_companies`
+- Asigna plataformas: crea `Platform` si no existe, determina tipo (console/pc/streaming) por nombre, guarda `release_year` en la pivot `Product_x_Platform`
+- Genera slug único con sufijo numérico si hay colisión
+
+**Endpoints admin:**
+```
+GET  /api/admin/igdb/search?q={query}   → IgdbGame[]
+POST /api/admin/igdb/import             Body: { igdb_id: number } → Product
+```
+
+**Comando artisan:**
+```bash
+php artisan igdb:import-top --limit=10
+```
+Itera todos los géneros que tengan `igdb_genre_id` seteado e importa los N juegos más populares de cada uno.
+
+---
+
+### Panel de administración (Admin CRUD)
+
+Todos los endpoints están bajo `/api/admin` y requieren autenticación Sanctum + role `admin` + no estar baneado.
+
+#### Géneros (`/api/admin/genres`)
+- CRUD completo (index, store, update, destroy)
+- `PUT /api/admin/genres/{id}/categories` — sincroniza las categorías asignadas al género con sus pesos. Recibe array `[{ id, weight }]` y reemplaza todas las asignaciones existentes.
+- Cada género puede tener múltiples categorías con pesos independientes.
+
+#### Categorías (`/api/admin/categories`)
+- CRUD completo. Las categorías son los criterios de evaluación (Gameplay, Historia, Gráficos, etc.).
+
+#### Plataformas (`/api/admin/platforms`)
+- CRUD completo. Tipo: `console | pc | streaming`.
+
+#### Productos (`/api/admin/products`)
+- Index paginado (15 por página) con carga de `gameDetail` y `platforms`
+- Creación y edición con campos de `GameDetails` embebidos en el request
+- Slug auto-generado desde el título; sufijo numérico si hay colisión
+- Cover image: URL externa por defecto. Si existe `public/cover_images/{slug}.{ext}` (jpg/jpeg/png/webp), se devuelve la ruta local.
+
+#### Reseñas (`/api/admin/reviews`)
+- Index paginado con filtro `?banned=1`
+- `POST /api/admin/reviews/{id}/ban` — banea una reseña, recalcula scores
+- `DELETE /api/admin/reviews/{id}/ban` — desbanea, recalcula scores
+
+#### Usuarios (`/api/admin/users`)
+- Index paginado con filtros `?banned=1&role={role}`
+- `GET /api/admin/users/{id}` — detalle con reseñas
+- `POST /api/admin/users/{id}/ban` — banea usuario + revoca todos sus tokens
+- `DELETE /api/admin/users/{id}/ban` — desbanea usuario
+- `PATCH /api/admin/users/{id}/role` — cambia role (`user | critic | admin`)
 
 ---
 
@@ -176,7 +237,7 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 
 ### Convención de nombres
 - Tablas regulares: PascalCase plural (`Genres`, `Products`)
-- Tablas cruzadas: `A_x_B` singular (`Genre_x_Category`, `Product_x_Platform`)
+- Tablas cruzadas: `A_x_B` (`Genre_x_Category`, `Product_x_Platform`)
 - Excepción: `Follows` (auto-referencial Users–Users)
 - Campos: snake_case minúscula
 
@@ -185,10 +246,13 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 ```
 Users
   id, name, email, password (nullable), google_id (hidden)
-  avatar, role (user|critic|admin), badges (JSON), timestamps
+  avatar, role (user|critic|admin), badges (JSON)
+  banned_at (timestamp nullable), ban_reason (string nullable)
+  timestamps
 
 Genres                      Categories
   id, name, slug              id, name, slug, timestamps
+  igdb_genre_id (nullable)
        └──── Genre_x_Category ────┘
                genre_id, category_id
                weight (decimal 0.00–1.00), timestamps
@@ -198,9 +262,7 @@ Platforms
 
 Products
   id, type (game|movie|series), genre_id
-  title, slug, description
-  cover_image (URL externa; local si existe public/cover_images/{slug}.ext)
-  timestamps
+  title, slug, description, cover_image, timestamps
        │
        ├── Product_x_Platform (cruzada)
        │     product_id, platform_id
@@ -215,8 +277,9 @@ Products
        │
        └── Reviews ───────────────────── Users
              id, user_id, product_id
-             body (varchar 255, nullable, sin links)
+             body (varchar 255, nullable)
              weighted_score (int 0–100), letter_grade
+             banned_at (timestamp nullable), ban_reason (string nullable)
              timestamps · unique(user_id, product_id)
                │
                └── Review_x_Category (cruzada)
@@ -229,58 +292,48 @@ Follows (cruzada Users–Users)
   created_at
 ```
 
-### Fórmula de score
+### Seeders
 
-Los scores de categoría (0–10) se ponderan y escalan a 0–100:
+```bash
+php artisan db:seed
 ```
-weighted_score = round( Σ(score × weight) / Σ(weights) × 10 )
-```
+
+Siembra géneros con su `igdb_genre_id`, las 5 categorías de evaluación, y las asignaciones con pesos por género:
+
+| Género | Categorías y pesos |
+|---|---|
+| RPG | Historia 0.30, Gameplay 0.25, Gráficos 0.20, Sonido 0.15, Duración 0.10 |
+| FPS | Gameplay 0.40, Gráficos 0.25, Sonido 0.20, Duración 0.10, Historia 0.05 |
+| Deporte | Gameplay 0.40, Gráficos 0.25, Duración 0.20, Sonido 0.10, Historia 0.05 |
 
 ---
 
 ## Roadmap
 
-### Fase 1 — Core (en progreso)
-- [x] Autenticación Google OAuth
-- [ ] Rediseño y creación de migraciones (esquema v2)
-- [ ] Modelos y relaciones Eloquent
-- [ ] Endpoints CRUD: Products, Genres, Categories, Platforms
-- [ ] Endpoint de Reviews con cálculo de score ponderado
-- [ ] Integración IGDB API (metadatos de juegos)
+### Fase 1 — Core (completada)
+- [x] Autenticación Google OAuth + Sanctum
+- [x] Esquema de base de datos v2 (Products genérico + GameDetails)
+- [x] Modelos y relaciones Eloquent
+- [x] Motor de puntuación ponderada (ScoringService)
+- [x] Integración IGDB API (IgdbService + ProductImportService)
+- [x] Panel de administración completo (CRUD Admin)
+- [x] Sistema de roles y baneos (usuarios + reseñas)
 
-### Fase 2 — Capa social
-- [ ] Sistema de Follow
-- [ ] Trust Score (media de usuarios seguidos, tiempo real)
+### Fase 2 — API pública
+- [ ] Endpoints públicos: listado y detalle de productos con triple score
+- [ ] Endpoint de reseñas: publicar, listar por producto
+- [ ] Trust Score en tiempo real (Follows del usuario autenticado)
 - [ ] Validación de críticas (útil / no útil)
-- [ ] Niveles de usuario (Entusiasta / Experto)
 
-### Fase 3 — Extensibilidad
+### Fase 3 — Capa social
+- [ ] Niveles de usuario (Entusiasta / Experto)
+- [ ] Sistema de notificaciones
+
+### Fase 4 — Extensibilidad
 - [ ] MovieDetails (director, imdb_id, duration)
 - [ ] SeriesDetails (director, imdb_id, seasons)
 
-### Fase 4 — Optimización
-- [ ] Job diario de snapshot histórico de ProductScores (no trigger)
+### Fase 5 — Optimización
+- [ ] Job diario de snapshot histórico de ProductScores
 - [ ] Laravel Queues para recálculo asíncrono de puntuaciones
 - [ ] Caché de puntuaciones (Redis)
-- [ ] Scraper de Pro Scores (Metacritic/OpenCritic)
-
----
-
-## TODO
-
-- [ ] Definir y crear todas las migraciones del esquema v2
-- [ ] Crear modelos: Platform, GameDetails, y actualizar Product
-- [ ] Controllers: GenreController, CategoryController, ProductController, PlatformController, ReviewController
-- [ ] Sistema de puntuación ponderada: Σ(score×weight)/Σ(weights) → letter grade
-- [ ] Triple score por producto: Global (todos), Pro (critics/admin), Trust (seguidos, tiempo real)
-- [ ] Endpoint Trust Score: calculado en tiempo real según follows del usuario autenticado
-- [ ] Sistema de roles: user, critic, admin — Pro Score solo cuenta critics y admins
-- [ ] Sistema de Follow entre usuarios
-- [ ] IGDB API: integración para autocompletar metadatos de juegos
-- [ ] Soporte multi-plataforma: consolas, PC, streaming con fecha de salida y link por plataforma
-- [ ] Extensibilidad a películas y series (MovieDetails, SeriesDetails)
-- [ ] Job diario: snapshot histórico de ProductScores por día
-- [ ] Validación de críticas (útil / no útil)
-- [ ] Niveles de usuario (Entusiasta / Experto)
-- [ ] Laravel Queues + Redis para recálculo y caché de puntuaciones
-- [ ] Scraper de Pro Scores (Metacritic / OpenCritic)

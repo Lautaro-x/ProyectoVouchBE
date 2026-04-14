@@ -14,10 +14,19 @@ class ReviewController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $allowed = ['id', 'weighted_score', 'created_at'];
+        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = min((int) $request->get('per_page', 25), 100);
+
         $reviews = Review::with(['user', 'product'])
             ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))
-            ->orderByDesc('created_at')
-            ->paginate(20);
+            ->when($request->search, fn($q) => $q->where(function ($inner) use ($request) {
+                $inner->whereHas('user', fn($u) => $u->where('name', 'like', "%{$request->search}%"))
+                      ->orWhereHas('product', fn($p) => $p->where('title', 'like', "%{$request->search}%"));
+            }))
+            ->orderBy($sortBy, $sortDir)
+            ->paginate($perPage);
 
         return response()->json($reviews);
     }

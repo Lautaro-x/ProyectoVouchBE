@@ -10,34 +10,86 @@ use Illuminate\Support\Str;
 
 class GenreController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(
-            Genre::with(['categories' => fn($q) => $q->withPivot('weight')])->get()
-        );
+        $allowed = ['id', 'name', 'igdb_genre_id'];
+        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = min((int) $request->get('per_page', 25), 100);
+
+        $query = Genre::with(['categories' => fn($q) => $q->withPivot('weight')]);
+
+        if ($request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                foreach (['en', 'es', 'fr', 'pt', 'it'] as $locale) {
+                    $q->orWhereRaw(
+                        "JSON_UNQUOTE(JSON_EXTRACT(name, '$.$locale')) LIKE ?",
+                        ["%{$search}%"]
+                    );
+                }
+            });
+        }
+
+        if ($sortBy === 'name') {
+            $query->orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(name, '$.en')) {$sortDir}");
+        } else {
+            $query->orderBy($sortBy, $sortDir);
+        }
+
+        if ($request->all === '1') {
+            return response()->json($query->get());
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name'          => 'required|string|max:100|unique:Genres,name',
-            'igdb_genre_id' => 'nullable|integer|unique:Genres,igdb_genre_id',
+            'name'    => 'required|array',
+            'name.en' => 'required|string|max:100',
+            'name.es' => 'nullable|string|max:100',
+            'name.fr' => 'nullable|string|max:100',
+            'name.pt' => 'nullable|string|max:100',
+            'name.it' => 'nullable|string|max:100',
         ]);
 
-        $data['slug'] = Str::slug($data['name']);
+        $slug = Str::slug($data['name']['en']);
 
-        return response()->json(Genre::create($data), 201);
+        abort_if(
+            Genre::where('slug', $slug)->exists(),
+            422,
+            'A genre with this English name already exists.'
+        );
+
+        $genre = Genre::create(['name' => $data['name'], 'slug' => $slug]);
+
+        return response()->json($genre, 201);
     }
 
     public function update(Request $request, Genre $genre): JsonResponse
     {
         $data = $request->validate([
-            'name'          => "required|string|max:100|unique:Genres,name,{$genre->id}",
-            'igdb_genre_id' => "nullable|integer|unique:Genres,igdb_genre_id,{$genre->id}",
+            'name'    => 'required|array',
+            'name.en' => 'required|string|max:100',
+            'name.es' => 'nullable|string|max:100',
+            'name.fr' => 'nullable|string|max:100',
+            'name.pt' => 'nullable|string|max:100',
+            'name.it' => 'nullable|string|max:100',
         ]);
 
-        $data['slug'] = Str::slug($data['name']);
-        $genre->update($data);
+        $slug = Str::slug($data['name']['en']);
+
+        abort_if(
+            $genre->slug !== $slug && Genre::where('slug', $slug)->exists(),
+            422,
+            'A genre with this English name already exists.'
+        );
+
+        $genre->setTranslations('name', $data['name']);
+        $genre->slug = $slug;
+        $genre->save();
 
         return response()->json($genre);
     }
@@ -51,9 +103,9 @@ class GenreController extends Controller
     public function syncCategories(Request $request, Genre $genre): JsonResponse
     {
         $data = $request->validate([
-            'categories'             => 'required|array',
-            'categories.*.id'        => 'required|exists:Categories,id',
-            'categories.*.weight'    => 'required|numeric|min:0.01|max:1',
+            'categories'          => 'required|array',
+            'categories.*.id'     => 'required|exists:Categories,id',
+            'categories.*.weight' => 'required|numeric|min:0.01|max:1',
         ]);
 
         $sync = collect($data['categories'])->mapWithKeys(

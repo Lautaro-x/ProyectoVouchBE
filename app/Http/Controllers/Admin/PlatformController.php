@@ -10,9 +10,27 @@ use Illuminate\Support\Str;
 
 class PlatformController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(Platform::all());
+        $allowed = ['id', 'name', 'type'];
+        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
+        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
+        $perPage = min((int) $request->get('per_page', 25), 100);
+
+        $query = Platform::query();
+
+        if ($request->search) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+        if ($request->type) {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->all === '1') {
+            return response()->json($query->orderBy($sortBy, $sortDir)->get());
+        }
+
+        return response()->json($query->orderBy($sortBy, $sortDir)->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
