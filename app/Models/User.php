@@ -21,6 +21,8 @@ class User extends Authenticatable
         'avatar',
         'role',
         'badges',
+        'banned_at',
+        'ban_reason',
     ];
 
     protected $hidden = [
@@ -33,7 +35,13 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password'          => 'hashed',
         'badges'            => 'array',
+        'banned_at'         => 'datetime',
     ];
+
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
+    }
 
     public function reviews(): HasMany
     {

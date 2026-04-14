@@ -16,11 +16,19 @@ class Review extends Model
         'body',
         'weighted_score',
         'letter_grade',
+        'banned_at',
+        'ban_reason',
     ];
 
     protected $casts = [
         'weighted_score' => 'integer',
+        'banned_at'      => 'datetime',
     ];
+
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
+    }
 
     public function user(): BelongsTo
     {

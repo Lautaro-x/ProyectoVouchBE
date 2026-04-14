@@ -62,7 +62,7 @@ class ScoringService
 
     public function recalculateProductScores(Product $product): void
     {
-        $allReviews = $product->reviews()->with('user')->get();
+        $allReviews = $product->reviews()->with('user')->whereNull('banned_at')->get();
         $proReviews = $allReviews->filter(fn(Review $r) => in_array($r->user->role, ['critic', 'admin']));
 
         ProductScore::updateOrCreate(
@@ -85,6 +85,7 @@ class ScoringService
 
         $scores = $product->reviews()
             ->whereIn('user_id', $followedIds)
+            ->whereNull('banned_at')
             ->pluck('weighted_score');
 
         return $scores->isNotEmpty() ? (int) round($scores->avg()) : null;
