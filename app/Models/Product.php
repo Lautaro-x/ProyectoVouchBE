@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,7 +14,6 @@ class Product extends Model
 
     protected $fillable = [
         'type',
-        'genre_id',
         'title',
         'slug',
         'description',
@@ -34,9 +32,9 @@ class Product extends Model
         return $value;
     }
 
-    public function genre(): BelongsTo
+    public function genres(): BelongsToMany
     {
-        return $this->belongsTo(Genre::class);
+        return $this->belongsToMany(Genre::class, 'Product_x_Genre');
     }
 
     public function platforms(): BelongsToMany

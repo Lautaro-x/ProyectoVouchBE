@@ -7,6 +7,7 @@ use App\Models\GameDetail;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -18,10 +19,10 @@ class ProductController extends Controller
         $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
         $perPage = min((int) $request->get('per_page', 25), 100);
 
-        $products = Product::with(['genre', 'gameDetails', 'platforms', 'score'])
+        $products = Product::with(['genres', 'gameDetails', 'platforms', 'score'])
             ->when($request->search, fn($q) => $q->where('title', 'like', "%{$request->search}%"))
             ->when($request->type, fn($q) => $q->where('type', $request->type))
-            ->when($request->genre_id, fn($q) => $q->where('genre_id', $request->genre_id))
+            ->when($request->genre_id, fn($q) => $q->whereHas('genres', fn($g) => $g->where('Genres.id', $request->genre_id)))
             ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
 
@@ -31,18 +32,21 @@ class ProductController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'type'        => 'required|in:game,movie,series',
-            'genre_id'    => 'required|exists:Genres,id',
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'cover_image' => 'nullable|url',
-            'developer'   => 'nullable|string|max:255',
-            'publisher'   => 'nullable|string|max:255',
+            'type'         => 'required|in:game,movie,series',
+            'genre_ids'    => 'required|array|min:1',
+            'genre_ids.*'  => 'exists:Genres,id',
+            'title'        => 'required|string|max:255',
+            'description'  => 'nullable|string',
+            'cover_image'  => 'nullable|url',
+            'developer'    => 'nullable|string|max:255',
+            'publisher'    => 'nullable|string|max:255',
         ]);
 
         $data['slug'] = $this->uniqueSlug($data['title']);
+        $genreIds     = $data['genre_ids'];
 
-        $product = Product::create($data);
+        $product = Product::create(Arr::except($data, ['genre_ids', 'developer', 'publisher']));
+        $product->genres()->sync($genreIds);
 
         if ($data['type'] === 'game') {
             GameDetail::create([
@@ -52,25 +56,30 @@ class ProductController extends Controller
             ]);
         }
 
-        return response()->json($product->load('gameDetails', 'genre'), 201);
+        return response()->json($product->load('gameDetails', 'genres'), 201);
     }
 
     public function update(Request $request, Product $product): JsonResponse
     {
         $data = $request->validate([
-            'genre_id'    => 'sometimes|exists:Genres,id',
-            'title'       => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'cover_image' => 'nullable|url',
-            'developer'   => 'nullable|string|max:255',
-            'publisher'   => 'nullable|string|max:255',
+            'genre_ids'    => 'sometimes|array|min:1',
+            'genre_ids.*'  => 'exists:Genres,id',
+            'title'        => 'sometimes|string|max:255',
+            'description'  => 'nullable|string',
+            'cover_image'  => 'nullable|url',
+            'developer'    => 'nullable|string|max:255',
+            'publisher'    => 'nullable|string|max:255',
         ]);
+
+        if (isset($data['genre_ids'])) {
+            $product->genres()->sync($data['genre_ids']);
+        }
 
         if (isset($data['title'])) {
             $data['slug'] = $this->uniqueSlug($data['title'], $product->id);
         }
 
-        $product->update($data);
+        $product->update(Arr::except($data, ['genre_ids', 'developer', 'publisher']));
 
         if ($product->type === 'game') {
             $product->gameDetails()->updateOrCreate(
@@ -82,7 +91,24 @@ class ProductController extends Controller
             );
         }
 
-        return response()->json($product->load('gameDetails', 'genre', 'platforms'));
+        return response()->json($product->load('gameDetails', 'genres', 'platforms'));
+    }
+
+    public function purchaseLinks(Request $request, Product $product): JsonResponse
+    {
+        $data = $request->validate([
+            'platforms'                => 'required|array',
+            'platforms.*.platform_id'  => 'required|exists:Platforms,id',
+            'platforms.*.purchase_url' => 'nullable|url|max:500',
+        ]);
+
+        foreach ($data['platforms'] as $item) {
+            $product->platforms()->updateExistingPivot($item['platform_id'], [
+                'purchase_url' => $item['purchase_url'] ?? null,
+            ]);
+        }
+
+        return response()->json($product->load('platforms'));
     }
 
     public function destroy(Product $product): JsonResponse

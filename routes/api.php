@@ -23,6 +23,7 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
         Route::apiResource('categories', Admin\CategoryController::class)->except('show');
         Route::apiResource('platforms', Admin\PlatformController::class)->except('show');
         Route::apiResource('products', Admin\ProductController::class)->except('show');
+        Route::put('products/{product}/purchase-links', [Admin\ProductController::class, 'purchaseLinks']);
 
         Route::get('reviews', [Admin\ReviewController::class, 'index']);
         Route::post('reviews/{review}/ban', [Admin\ReviewController::class, 'ban']);

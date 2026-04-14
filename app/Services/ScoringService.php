@@ -28,25 +28,32 @@ class ScoringService
 
     public function calculateWeightedScore(Review $review): int
     {
-        $categories = $review->product->genre->categories;
-        $scores     = $review->scores->keyBy('category_id');
+        $product = $review->product->load(['genres.categories']);
 
+        $weightMap = [];
+        foreach ($product->genres as $genre) {
+            foreach ($genre->categories as $category) {
+                $weight = (float) $category->pivot->weight;
+                if (!isset($weightMap[$category->id]) || $weight > $weightMap[$category->id]) {
+                    $weightMap[$category->id] = $weight;
+                }
+            }
+        }
+
+        arsort($weightMap);
+        $weightMap = array_slice($weightMap, 0, 15, true);
+
+        $scores      = $review->scores->keyBy('category_id');
         $numerator   = 0;
         $denominator = 0;
 
-        foreach ($categories as $category) {
-            $weight = (float) $category->pivot->weight;
-            $score  = $scores->get($category->id)?->score ?? 0;
-
+        foreach ($weightMap as $categoryId => $weight) {
+            $score        = $scores->get($categoryId)?->score ?? 0;
             $numerator   += $score * $weight;
             $denominator += $weight;
         }
 
-        if ($denominator === 0) {
-            return 0;
-        }
-
-        return (int) round(($numerator / $denominator) * 10);
+        return $denominator > 0 ? (int) round(($numerator / $denominator) * 10) : 0;
     }
 
     public function calculateLetterGrade(int $score): string

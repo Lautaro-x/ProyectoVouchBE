@@ -13,6 +13,7 @@ API REST del proyecto Vouch, una plataforma social de críticas ponderadas para 
 | MySQL | — | Base de datos (vía Laragon) |
 | Laravel Sanctum | 3.3 | Autenticación por tokens |
 | GuzzleHTTP | 7.x | Cliente HTTP |
+| spatie/laravel-translatable | 6.x | Nombres traducibles en base de datos (JSON) |
 | PHPUnit | 10.1 | Testing |
 
 ---
@@ -206,9 +207,12 @@ Todos los endpoints están bajo `/api/admin` y requieren autenticación Sanctum 
 - CRUD completo (index, store, update, destroy)
 - `PUT /api/admin/genres/{id}/categories` — sincroniza las categorías asignadas al género con sus pesos. Recibe array `[{ id, weight }]` y reemplaza todas las asignaciones existentes.
 - Cada género puede tener múltiples categorías con pesos independientes.
+- El campo `name` es JSON multilingüe (ver *Nombres traducibles*). El slug se deriva automáticamente del nombre en inglés (`name.en`).
+- Búsqueda por `?search=` aplica `JSON_EXTRACT` sobre los 5 idiomas. Ordenar por `name` usa `JSON_UNQUOTE(JSON_EXTRACT(name, '$.en'))`.
 
 #### Categorías (`/api/admin/categories`)
 - CRUD completo. Las categorías son los criterios de evaluación (Gameplay, Historia, Gráficos, etc.).
+- El campo `name` es JSON multilingüe (ver *Nombres traducibles*). El slug se deriva de `name.en`.
 
 #### Plataformas (`/api/admin/platforms`)
 - CRUD completo. Tipo: `console | pc | streaming`.
@@ -251,7 +255,7 @@ Users
   timestamps
 
 Genres                      Categories
-  id, name, slug              id, name, slug, timestamps
+  id, name (JSON), slug       id, name (JSON), slug, timestamps
   igdb_genre_id (nullable)
        └──── Genre_x_Category ────┘
                genre_id, category_id
@@ -292,19 +296,69 @@ Follows (cruzada Users–Users)
   created_at
 ```
 
+### Nombres traducibles (`spatie/laravel-translatable`)
+
+Los campos `name` de `Genres` y `Categories` son columnas JSON. Cada valor almacena un objeto con los 5 idiomas soportados:
+
+```json
+{ "en": "Gameplay", "es": "Jugabilidad", "fr": "Jouabilité", "pt": "Jogabilidade", "it": "Giocabilità" }
+```
+
+Los modelos `Genre` y `Category` usan el trait `HasTranslations` con `$translatable = ['name']`. El método `toArray()` está sobreescrito para devolver siempre el objeto completo con los 5 idiomas en las respuestas JSON de la API.
+
+Los slugs se derivan siempre del nombre en inglés: `Str::slug($data['name']['en'])`. Esto garantiza consistencia independientemente del idioma de la interfaz.
+
+---
+
 ### Seeders
 
 ```bash
 php artisan db:seed
 ```
 
-Siembra géneros con su `igdb_genre_id`, las 5 categorías de evaluación, y las asignaciones con pesos por género:
+Siembra géneros con su `igdb_genre_id`, 6 categorías de evaluación y las asignaciones con pesos por género. Todos los nombres incluyen los 5 idiomas.
 
-| Género | Categorías y pesos |
+| Género (slug) | Categorías y pesos |
 |---|---|
-| RPG | Historia 0.30, Gameplay 0.25, Gráficos 0.20, Sonido 0.15, Duración 0.10 |
-| FPS | Gameplay 0.40, Gráficos 0.25, Sonido 0.20, Duración 0.10, Historia 0.05 |
-| Deporte | Gameplay 0.40, Gráficos 0.25, Duración 0.20, Sonido 0.10, Historia 0.05 |
+| `rpg` | Story 0.30, Gameplay 0.25, Graphics 0.15, Sound 0.15, Duration 0.15 |
+| `fps` | Gameplay 0.40, Graphics 0.20, Story 0.15, Sound 0.15, Duration 0.10 |
+| `sport` | Gameplay 0.40, Graphics 0.20, Duration 0.25, Sound 0.10, Story 0.05 |
+
+Categorías disponibles: `gameplay`, `story`, `graphics`, `sound`, `duration`, `feel`.
+
+---
+
+## Comandos Artisan personalizados
+
+### `igdb:import-top`
+Importa los juegos más valorados de IGDB para cada género que tenga `igdb_genre_id` configurado. Los géneros del juego se asignan automáticamente desde los metadatos de IGDB.
+
+```bash
+php artisan igdb:import-top --limit=10
+```
+
+| Opción | Default | Descripción |
+|---|---|---|
+| `--limit` | `10` | Número de juegos a importar por género |
+
+---
+
+### `db:reset-content`
+Limpia todas las tablas de contenido (productos, géneros, categorías, plataformas, reseñas y sus tablas cruzadas) preservando los usuarios. Tras la limpieza re-ejecuta `CategorySeeder`, `GenreSeeder` y `GenreCategorySeeder`.
+
+```bash
+php artisan db:reset-content
+```
+
+| Opción | Descripción |
+|---|---|
+| `--no-seed` | Solo limpia las tablas, omite los seeders |
+
+Flujo habitual para reiniciar datos desde cero:
+```bash
+php artisan db:reset-content
+php artisan igdb:import-top --limit=10
+```
 
 ---
 
@@ -318,6 +372,7 @@ Siembra géneros con su `igdb_genre_id`, las 5 categorías de evaluación, y las
 - [x] Integración IGDB API (IgdbService + ProductImportService)
 - [x] Panel de administración completo (CRUD Admin)
 - [x] Sistema de roles y baneos (usuarios + reseñas)
+- [x] Nombres de géneros y categorías traducibles en BD (Spatie Translatable, JSON, 5 idiomas)
 
 ### Fase 2 — API pública
 - [ ] Endpoints públicos: listado y detalle de productos con triple score

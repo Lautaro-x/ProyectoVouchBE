@@ -43,7 +43,7 @@ class IgdbImportTopCommand extends Command
             $skipped  = 0;
 
             foreach ($games as $game) {
-                $product = $this->importer->importGame($game, $genre->id);
+                $product = $this->importer->importGame($game);
 
                 if ($product) {
                     $this->line("  ✓ {$product->title}");

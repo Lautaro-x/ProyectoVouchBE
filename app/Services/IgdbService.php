@@ -49,7 +49,8 @@ class IgdbService
             involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
             platforms.name,platforms.abbreviation,
             release_dates.date,release_dates.platform.id,
-            genres.name;
+            genres.name,
+            external_games.uid,external_games.category;
             where id = {$igdbId};"
         );
 
@@ -63,7 +64,8 @@ class IgdbService
             involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
             platforms.name,platforms.abbreviation,
             release_dates.date,release_dates.platform.id,
-            genres.name;
+            genres.name,
+            external_games.uid,external_games.category;
             where genres = ({$igdbGenreId})
               & aggregated_rating_count > 5
               & cover != null;

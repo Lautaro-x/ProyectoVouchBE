@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GameDetail;
+use App\Models\Genre;
 use App\Models\Platform;
 use App\Models\Product;
 use Illuminate\Support\Str;
@@ -11,7 +12,7 @@ class ProductImportService
 {
     public function __construct(private IgdbService $igdb) {}
 
-    public function importGame(array $game, int $genreId): ?Product
+    public function importGame(array $game): ?Product
     {
         if (GameDetail::where('igdb_id', $game['id'])->exists()) {
             return null;
@@ -19,7 +20,6 @@ class ProductImportService
 
         $product = Product::create([
             'type'        => 'game',
-            'genre_id'    => $genreId,
             'title'       => $game['name'],
             'slug'        => $this->uniqueSlug($game['name']),
             'description' => $game['summary'] ?? null,
@@ -35,24 +35,34 @@ class ProductImportService
             'publisher'  => $publisher,
         ]);
 
+        $igdbGenreIds = collect($game['genres'] ?? [])->pluck('id')->toArray();
+        $genreIds     = Genre::whereIn('igdb_genre_id', $igdbGenreIds)->pluck('id');
+        $product->genres()->sync($genreIds);
+
+        $steamUrl     = $this->resolveSteamUrl($game['external_games'] ?? []);
         $releaseDates = collect($game['release_dates'] ?? [])->keyBy('platform.id');
 
         foreach ($game['platforms'] ?? [] as $igdbPlatform) {
+            $platformType = $this->resolvePlatformType($igdbPlatform['name']);
+
             $platform = Platform::firstOrCreate(
                 ['slug' => Str::slug($igdbPlatform['name'])],
                 [
                     'name' => $igdbPlatform['name'],
-                    'type' => $this->resolvePlatformType($igdbPlatform['name']),
+                    'type' => $platformType,
                 ]
             );
 
             $releaseEntry = $releaseDates->get($igdbPlatform['id']);
-            $releaseYear  = $releaseEntry
+            $releaseYear  = isset($releaseEntry['date'])
                 ? (int) date('Y', $releaseEntry['date'])
                 : (isset($game['first_release_date']) ? (int) date('Y', $game['first_release_date']) : null);
 
             $product->platforms()->syncWithoutDetaching([
-                $platform->id => ['release_year' => $releaseYear],
+                $platform->id => [
+                    'release_year' => $releaseYear,
+                    'purchase_url' => $platformType === 'pc' ? $steamUrl : null,
+                ],
             ]);
         }
 
@@ -82,6 +92,17 @@ class ProductImportService
         }
 
         return [$developer, $publisher];
+    }
+
+    private function resolveSteamUrl(array $externalGames): ?string
+    {
+        foreach ($externalGames as $ext) {
+            if (($ext['category'] ?? null) === 1 && !empty($ext['uid'])) {
+                return "https://store.steampowered.com/app/{$ext['uid']}/";
+            }
+        }
+
+        return null;
     }
 
     private function resolvePlatformType(string $name): string

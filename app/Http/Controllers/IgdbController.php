@@ -23,10 +23,7 @@ class IgdbController extends Controller
 
     public function import(Request $request): JsonResponse
     {
-        $request->validate([
-            'igdb_id'  => 'required|integer',
-            'genre_id' => 'required|exists:Genres,id',
-        ]);
+        $request->validate(['igdb_id' => 'required|integer']);
 
         $game = $this->igdb->find($request->igdb_id);
 
@@ -34,14 +31,14 @@ class IgdbController extends Controller
             return response()->json(['message' => 'Juego no encontrado en IGDB'], 404);
         }
 
-        $product = $this->importer->importGame($game, $request->genre_id);
+        $product = $this->importer->importGame($game);
 
         if (!$product) {
             return response()->json(['message' => 'Este juego ya fue importado'], 409);
         }
 
         return response()->json(
-            $product->load('gameDetails', 'platforms', 'genre'),
+            $product->load('gameDetails', 'platforms', 'genres'),
             201
         );
     }
