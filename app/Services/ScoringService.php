@@ -58,6 +58,8 @@ class ScoringService
 
     public function calculateLetterGrade(int $score): string
     {
+        if ($score === 100) return 'S';
+
         foreach (self::LETTER_GRADES as $threshold => $grade) {
             if ($score >= $threshold) {
                 return $grade;
@@ -67,19 +69,26 @@ class ScoringService
         return 'F';
     }
 
-    public function recalculateProductScores(Product $product): void
+    public function recalculateProductScores(Product $product, ?string $role = null): void
     {
-        $allReviews = $product->reviews()->with('user')->whereNull('banned_at')->get();
-        $proReviews = $allReviews->filter(fn(Review $r) => in_array($r->user->role, ['critic', 'admin']));
+        $reviews = $product->reviews()->with('user')->whereNull('banned_at')->get();
+        $updates = ['updated_at' => now()];
 
-        ProductScore::updateOrCreate(
-            ['product_id' => $product->id],
-            [
-                'global_score' => $this->average($allReviews),
-                'pro_score'    => $this->average($proReviews),
-                'updated_at'   => now(),
-            ]
-        );
+        if ($role === null || $role === 'user') {
+            $updates['global_score'] = $this->average(
+                $reviews->filter(fn(Review $r) => $r->user->role === 'user')
+            );
+        }
+
+        if ($role === null || $role === 'critic') {
+            $updates['pro_score'] = $this->average(
+                $reviews->filter(fn(Review $r) => $r->user->role === 'critic')
+            );
+        }
+
+        if (count($updates) > 1) {
+            ProductScore::updateOrCreate(['product_id' => $product->id], $updates);
+        }
     }
 
     public function calculateTrustScore(Product $product, User $user): ?int

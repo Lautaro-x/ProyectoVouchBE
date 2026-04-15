@@ -23,7 +23,8 @@ API REST del proyecto Vouch, una plataforma social de críticas ponderadas para 
 ```
 app/
 ├── Console/Commands/
-│   └── IgdbImportTopCommand.php
+│   ├── IgdbImportTopCommand.php
+│   └── ResetContentCommand.php
 ├── Http/
 │   ├── Controllers/
 │   │   ├── AuthController.php
@@ -136,7 +137,7 @@ Verifica que el usuario no tenga `banned_at` seteado. Devuelve 403 con mensaje d
 
 ### Motor de puntuación (`ScoringService`)
 
-El núcleo diferenciador de la plataforma. Calcula puntuaciones ponderadas por categoría según el género del producto.
+El núcleo diferenciador de la plataforma. Calcula puntuaciones ponderadas por categoría según los géneros del producto.
 
 **Fórmula:**
 ```
@@ -145,24 +146,33 @@ weighted_score = round( Σ(score × weight) / Σ(weights) × 10 )
 
 Los scores de categoría son enteros 0–10. Los pesos se definen en `Genre_x_Category.weight` (decimal 0.00–1.00). El resultado final es un entero 0–100.
 
+**Algoritmo multi-género (MAX weight):**
+
+Un producto puede tener múltiples géneros. Para construir el mapa de pesos de una reseña:
+1. Se recorren todos los géneros del producto y sus categorías asignadas.
+2. Para cada categoría se conserva el **peso máximo** encontrado entre todos los géneros.
+3. El mapa resultante se ordena descendentemente por peso y se recortan las **top 15 categorías**.
+
+Esto evita que géneros secundarios diluyan el peso de un criterio ya cubierto por el género principal.
+
 **Escala de letras:**
 
 | Rango | Letra | Rango | Letra |
 |---|---|---|---|
-| 97-100 | A+ | 77-79 | C+ |
-| 93-96 | A | 73-76 | C |
-| 90-92 | A- | 70-72 | C- |
-| 87-89 | B+ | 67-69 | D+ |
-| 83-86 | B | 63-66 | D |
-| 80-82 | B- | 60-62 | D- |
-| — | — | 0-59 | F |
+| 100 | **S** | 77-79 | C+ |
+| 97-99 | A+ | 73-76 | C |
+| 93-96 | A | 70-72 | C- |
+| 90-92 | A- | 67-69 | D+ |
+| 87-89 | B+ | 63-66 | D |
+| 83-86 | B | 60-62 | D- |
+| 80-82 | B- | 0-59 | F |
 
 **Triple nota por producto:**
 
 | Score | Quién contribuye | Dónde se guarda |
 |---|---|---|
-| `global_score` | Todos los usuarios | `ProductScores` |
-| `pro_score` | Usuarios con role `critic` o `admin` | `ProductScores` |
+| `global_score` | Solo usuarios con role `user` | `ProductScores` |
+| `pro_score` | Solo usuarios con role `critic` | `ProductScores` |
 | `trust_score` | Usuarios a los que sigues | Calculado en tiempo real |
 
 El Trust Score no se cachea porque es personal para cada usuario. Global y Pro se recalculan y cachean en `ProductScores` al publicar cada crítica y al banear/desbanear reseñas. Las reseñas baneadas se excluyen del cálculo.
@@ -183,7 +193,11 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 - Crea o actualiza `Product` + `GameDetail`
 - Resuelve compañías (developer/publisher) desde el campo `involved_companies`
 - Asigna plataformas: crea `Platform` si no existe, determina tipo (console/pc/streaming) por nombre, guarda `release_year` en la pivot `Product_x_Platform`
+- **Sincroniza géneros** desde `igdbGame['genres']` cruzando `igdb_genre_id` con los géneros existentes en BD
+- **Detecta URL de Steam** automáticamente desde `external_games` (category === 1 = Steam); construye `https://store.steampowered.com/app/{uid}/` y la guarda en `purchase_url` del pivot PC
 - Genera slug único con sufijo numérico si hay colisión
+
+**Queries IGDB incluyen:** `external_games.uid`, `external_games.category` para detectar la URL de Steam durante el import.
 
 **Endpoints admin:**
 ```
@@ -218,10 +232,24 @@ Todos los endpoints están bajo `/api/admin` y requieren autenticación Sanctum 
 - CRUD completo. Tipo: `console | pc | streaming`.
 
 #### Productos (`/api/admin/products`)
-- Index paginado (15 por página) con carga de `gameDetail` y `platforms`
-- Creación y edición con campos de `GameDetails` embebidos en el request
+- Index paginado con carga de `genres`, `gameDetails`, `platforms` y `score`
+- Filtros: `?search=`, `?type=`, `?genre_id=`. Orden por `id`, `title`, `type`
+- Creación y edición: `genre_ids[]` (array, many-to-many), campos de `GameDetails` embebidos
 - Slug auto-generado desde el título; sufijo numérico si hay colisión
-- Cover image: URL externa por defecto. Si existe `public/cover_images/{slug}.{ext}` (jpg/jpeg/png/webp), se devuelve la ruta local.
+- Cover image: URL externa
+
+**`PUT /api/admin/products/{id}/purchase-links`**
+
+Actualiza el campo `purchase_url` en la pivot `Product_x_Platform` para cada plataforma asociada al producto. Body:
+```json
+{
+  "platforms": [
+    { "platform_id": 1, "purchase_url": "https://store.steampowered.com/app/292030/" },
+    { "platform_id": 3, "purchase_url": null }
+  ]
+}
+```
+Solo actualiza plataformas ya vinculadas al producto (`updateExistingPivot`). No crea ni elimina asociaciones.
 
 #### Reseñas (`/api/admin/reviews`)
 - Index paginado con filtro `?banned=1`
@@ -265,8 +293,11 @@ Platforms
   id, name, slug, type (console|pc|streaming), timestamps
 
 Products
-  id, type (game|movie|series), genre_id
+  id, type (game|movie|series)
   title, slug, description, cover_image, timestamps
+       │
+       ├── Product_x_Genre (cruzada)
+       │     product_id, genre_id, timestamps
        │
        ├── Product_x_Platform (cruzada)
        │     product_id, platform_id
@@ -316,15 +347,33 @@ Los slugs se derivan siempre del nombre en inglés: `Str::slug($data['name']['en
 php artisan db:seed
 ```
 
-Siembra géneros con su `igdb_genre_id`, 6 categorías de evaluación y las asignaciones con pesos por género. Todos los nombres incluyen los 5 idiomas.
+Siembra los 22 géneros de IGDB con su `igdb_genre_id`, 6 categorías de evaluación y las asignaciones con pesos por género. Todos los nombres incluyen los 5 idiomas (en, es, fr, pt, it).
 
-| Género (slug) | Categorías y pesos |
+**Géneros disponibles (22):**
+
+| Slug | IGDB ID | Slug | IGDB ID |
+|---|---|---|---|
+| `point-and-click` | 2 | `turn-based-strategy` | 11 |
+| `fighting` | 4 | `tactical` | 12 |
+| `shooter` | 5 | `hack-and-slash` | 25 |
+| `music` | 7 | `quiz-trivia` | 26 |
+| `platform` | 8 | `pinball` | 30 |
+| `puzzle` | 9 | `adventure` | 31 |
+| `racing` | 10 | `indie` | 32 |
+| `rts` | 11 | `arcade` | 33 |
+| `rpg` | 12 | `visual-novel` | 34 |
+| `simulator` | 13 | `card-board` | 35 |
+| `sport` | 14 | `strategy` | 15 |
+
+**Categorías disponibles:** `gameplay`, `story`, `graphics`, `sound`, `duration`, `feel`.
+
+Los pesos por categoría están definidos en `GenreCategorySeeder` para los 22 géneros. Ejemplo de pesos:
+
+| Género | Distribución |
 |---|---|
 | `rpg` | Story 0.30, Gameplay 0.25, Graphics 0.15, Sound 0.15, Duration 0.15 |
-| `fps` | Gameplay 0.40, Graphics 0.20, Story 0.15, Sound 0.15, Duration 0.10 |
-| `sport` | Gameplay 0.40, Graphics 0.20, Duration 0.25, Sound 0.10, Story 0.05 |
-
-Categorías disponibles: `gameplay`, `story`, `graphics`, `sound`, `duration`, `feel`.
+| `shooter` | Gameplay 0.40, Graphics 0.20, Feel 0.20, Sound 0.10, Story 0.10 |
+| `sport` | Gameplay 0.40, Duration 0.25, Graphics 0.20, Sound 0.10, Story 0.05 |
 
 ---
 
@@ -373,10 +422,22 @@ php artisan igdb:import-top --limit=10
 - [x] Panel de administración completo (CRUD Admin)
 - [x] Sistema de roles y baneos (usuarios + reseñas)
 - [x] Nombres de géneros y categorías traducibles en BD (Spatie Translatable, JSON, 5 idiomas)
+- [x] Relación many-to-many Products ↔ Genres (`Product_x_Genre`)
+- [x] Algoritmo MAX weight para productos multi-género (top 15 categorías)
+- [x] 22 géneros IGDB con pesos completos en todos los idiomas
+- [x] Auto-detección de URL Steam desde `external_games` en import IGDB
+- [x] Links de compra editables por plataforma (`PUT /products/{id}/purchase-links`)
+- [x] Comando `db:reset-content` para reinicio limpio de datos
 
 ### Fase 2 — API pública
-- [ ] Endpoints públicos: listado y detalle de productos con triple score
-- [ ] Endpoint de reseñas: publicar, listar por producto
+- [x] `GET /api/products/relevant` — top 6 productos con score ≥ 80 (B-), ordenados por `release_year` desc. Devuelve `slug`, `type` y `score_type` (global/pro) según cuál sea mayor.
+- [x] `GET /api/products/{type}/{slug}` — detalle completo: géneros, game_details, plataformas con `purchase_url`, scores con letter_grade. Si el request incluye token Sanctum válido, añade `user_review` con la nota del usuario. Devuelve 404 si el type no coincide.
+- [ ] Endpoints públicos: listado/catálogo de productos
+- [x] `GET /api/products/{id}/review-form` — datos del producto + categorías únicas de sus géneros para construir el formulario de crítica.
+- [x] `POST /api/reviews` (auth + not.banned) — crea una review con scores por categoría. Calcula `weighted_score` y `letter_grade` vía `ScoringService`. Recalcula `ProductScores`. Devuelve 422 si el usuario ya tiene review del producto.
+- [x] `GET /api/reviews/{review}/edit-form` (auth + not.banned) — devuelve los datos del producto + categorías + scores actuales + body de la review para pre-rellenar el formulario de edición. Valida que el usuario sea el autor.
+- [x] `PUT /api/reviews/{review}` (auth + not.banned) — actualiza scores y body de una review existente. Recalcula `weighted_score`, `letter_grade` y `ProductScores`. Valida autoría.
+- [ ] Listar reseñas por producto
 - [ ] Trust Score en tiempo real (Follows del usuario autenticado)
 - [ ] Validación de críticas (útil / no útil)
 

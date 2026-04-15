@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\IgdbController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReviewController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -10,8 +12,15 @@ Route::prefix('auth')->group(function () {
     Route::post('/google', [AuthController::class, 'googleLogin']);
 });
 
+Route::get('/products/relevant', [ProductController::class, 'relevant']);
+Route::get('/products/{id}/review-form', [ProductController::class, 'reviewForm']);
+Route::get('/products/{type}/{slug}', [ProductController::class, 'show']);
+
 Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
+    Route::post('/reviews', [ReviewController::class, 'store']);
+    Route::get('/reviews/{review}/edit-form', [ReviewController::class, 'editForm']);
+    Route::put('/reviews/{review}', [ReviewController::class, 'update']);
 
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('/igdb/search', [IgdbController::class, 'search']);

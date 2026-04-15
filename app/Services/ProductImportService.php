@@ -54,13 +54,13 @@ class ProductImportService
             );
 
             $releaseEntry = $releaseDates->get($igdbPlatform['id']);
-            $releaseYear  = isset($releaseEntry['date'])
-                ? (int) date('Y', $releaseEntry['date'])
-                : (isset($game['first_release_date']) ? (int) date('Y', $game['first_release_date']) : null);
+            $releaseDate  = isset($releaseEntry['date'])
+                ? date('Y-m-d', $releaseEntry['date'])
+                : (isset($game['first_release_date']) ? date('Y-m-d', $game['first_release_date']) : null);
 
             $product->platforms()->syncWithoutDetaching([
                 $platform->id => [
-                    'release_year' => $releaseYear,
+                    'release_date' => $releaseDate,
                     'purchase_url' => $platformType === 'pc' ? $steamUrl : null,
                 ],
             ]);

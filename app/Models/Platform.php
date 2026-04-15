@@ -14,6 +14,6 @@ class Platform extends Model
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'Product_x_Platform')
-            ->withPivot('release_year', 'purchase_url');
+            ->withPivot('release_date', 'purchase_url');
     }
 }

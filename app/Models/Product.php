@@ -40,7 +40,7 @@ class Product extends Model
     public function platforms(): BelongsToMany
     {
         return $this->belongsToMany(Platform::class, 'Product_x_Platform')
-            ->withPivot('release_year', 'purchase_url');
+            ->withPivot('release_date', 'purchase_url');
     }
 
     public function reviews(): HasMany

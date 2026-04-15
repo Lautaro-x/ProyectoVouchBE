@@ -1,0 +1,130 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\ScoringService;
+use App\Models\Product;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class ProductController extends Controller
+{
+    public function __construct(private ScoringService $scoring) {}
+
+    public function relevant(): JsonResponse
+    {
+        $products = Product::with(['score', 'platforms'])
+            ->whereHas('score', fn($q) =>
+                $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 80')
+            )
+            ->get()
+            ->sortByDesc(fn(Product $p) => $p->platforms->max('pivot.release_date') ?? '')
+            ->take(6)
+            ->map(fn(Product $p) => $this->formatCard($p))
+            ->values();
+
+        return response()->json($products);
+    }
+
+    public function reviewForm(int $id): JsonResponse
+    {
+        $product = Product::with(['genres.categories'])->findOrFail($id);
+
+        $categories = collect();
+        foreach ($product->genres as $genre) {
+            foreach ($genre->categories as $category) {
+                if (!$categories->has($category->id)) {
+                    $categories->put($category->id, [
+                        'id'   => $category->id,
+                        'name' => $category->getTranslations('name'),
+                    ]);
+                }
+            }
+        }
+
+        return response()->json([
+            'id'          => $product->id,
+            'title'       => $product->title,
+            'cover_image' => $product->cover_image,
+            'type'        => $product->type,
+            'slug'        => $product->slug,
+            'categories'  => $categories->values(),
+        ]);
+    }
+
+    public function show(Request $request, string $type, string $slug): JsonResponse
+    {
+        $product = Product::with(['genres', 'gameDetails', 'platforms', 'score'])
+            ->where('type', $type)
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        $globalScore = $product->score?->global_score;
+        $proScore    = $product->score?->pro_score;
+
+        $userReview = null;
+        if ($user = $request->user('sanctum')) {
+            $review = $product->reviews()
+                ->where('user_id', $user->id)
+                ->whereNull('banned_at')
+                ->first();
+            if ($review) {
+                $userReview = [
+                    'id'             => $review->id,
+                    'weighted_score' => $review->weighted_score,
+                    'letter_grade'   => $review->letter_grade,
+                ];
+            }
+        }
+
+        return response()->json([
+            'id'          => $product->id,
+            'type'        => $product->type,
+            'title'       => $product->title,
+            'slug'        => $product->slug,
+            'description' => $product->description,
+            'cover_image' => $product->cover_image,
+            'genres'      => $product->genres->map(fn($g) => [
+                'id'   => $g->id,
+                'name' => $g->name,
+            ]),
+            'game_details' => $product->gameDetails ? [
+                'developer' => $product->gameDetails->developer,
+                'publisher' => $product->gameDetails->publisher,
+                'igdb_id'   => $product->gameDetails->igdb_id,
+            ] : null,
+            'platforms' => $product->platforms->map(fn($p) => [
+                'id'           => $p->id,
+                'name'         => $p->name,
+                'type'         => $p->type,
+                'release_date' => $p->pivot->release_date,
+                'purchase_url' => $p->pivot->purchase_url,
+            ]),
+            'scores' => [
+                'global_score' => $globalScore,
+                'global_grade' => $globalScore !== null ? $this->scoring->calculateLetterGrade($globalScore) : null,
+                'pro_score'    => $proScore,
+                'pro_grade'    => $proScore !== null ? $this->scoring->calculateLetterGrade($proScore) : null,
+            ],
+            'user_review' => $userReview,
+        ]);
+    }
+
+    private function formatCard(Product $product): array
+    {
+        $global = $product->score?->global_score ?? 0;
+        $pro    = $product->score?->pro_score    ?? 0;
+        $best   = max($global, $pro);
+
+        return [
+            'id'          => $product->id,
+            'type'        => $product->type,
+            'slug'        => $product->slug,
+            'title'       => $product->title,
+            'cover_image' => $product->cover_image,
+            'score'       => $best,
+            'letter_grade'=> $this->scoring->calculateLetterGrade($best),
+            'score_type'  => $global >= $pro ? 'global' : 'pro',
+        ];
+    }
+}
