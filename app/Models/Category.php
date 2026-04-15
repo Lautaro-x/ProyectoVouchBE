@@ -13,14 +13,15 @@ class Category extends Model
 
     protected $table = 'Categories';
 
-    protected $fillable = ['name', 'slug'];
+    protected $fillable = ['name', 'slug', 'description'];
 
-    public array $translatable = ['name'];
+    public array $translatable = ['name', 'description'];
 
     public function toArray(): array
     {
         return array_merge(parent::toArray(), [
-            'name' => $this->getTranslations('name'),
+            'name'        => $this->getTranslations('name'),
+            'description' => $this->getTranslations('description'),
         ]);
     }
 

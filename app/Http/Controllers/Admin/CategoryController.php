@@ -47,12 +47,18 @@ class CategoryController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name'    => 'required|array',
-            'name.en' => 'required|string|max:100',
-            'name.es' => 'nullable|string|max:100',
-            'name.fr' => 'nullable|string|max:100',
-            'name.pt' => 'nullable|string|max:100',
-            'name.it' => 'nullable|string|max:100',
+            'name'           => 'required|array',
+            'name.en'        => 'required|string|max:100',
+            'name.es'        => 'nullable|string|max:100',
+            'name.fr'        => 'nullable|string|max:100',
+            'name.pt'        => 'nullable|string|max:100',
+            'name.it'        => 'nullable|string|max:100',
+            'description'    => 'nullable|array',
+            'description.en' => 'nullable|string|max:1000',
+            'description.es' => 'nullable|string|max:1000',
+            'description.fr' => 'nullable|string|max:1000',
+            'description.pt' => 'nullable|string|max:1000',
+            'description.it' => 'nullable|string|max:1000',
         ]);
 
         $slug = Str::slug($data['name']['en']);
@@ -63,7 +69,11 @@ class CategoryController extends Controller
             'A category with this English name already exists.'
         );
 
-        $category = Category::create(['name' => $data['name'], 'slug' => $slug]);
+        $category = Category::create([
+            'name'        => $data['name'],
+            'slug'        => $slug,
+            'description' => $data['description'] ?? null,
+        ]);
 
         return response()->json($category, 201);
     }
@@ -71,12 +81,18 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category): JsonResponse
     {
         $data = $request->validate([
-            'name'    => 'required|array',
-            'name.en' => 'required|string|max:100',
-            'name.es' => 'nullable|string|max:100',
-            'name.fr' => 'nullable|string|max:100',
-            'name.pt' => 'nullable|string|max:100',
-            'name.it' => 'nullable|string|max:100',
+            'name'           => 'required|array',
+            'name.en'        => 'required|string|max:100',
+            'name.es'        => 'nullable|string|max:100',
+            'name.fr'        => 'nullable|string|max:100',
+            'name.pt'        => 'nullable|string|max:100',
+            'name.it'        => 'nullable|string|max:100',
+            'description'    => 'nullable|array',
+            'description.en' => 'nullable|string|max:1000',
+            'description.es' => 'nullable|string|max:1000',
+            'description.fr' => 'nullable|string|max:1000',
+            'description.pt' => 'nullable|string|max:1000',
+            'description.it' => 'nullable|string|max:1000',
         ]);
 
         $slug = Str::slug($data['name']['en']);
@@ -88,6 +104,7 @@ class CategoryController extends Controller
         );
 
         $category->setTranslations('name', $data['name']);
+        $category->setTranslations('description', $data['description'] ?? []);
         $category->slug = $slug;
         $category->save();
 

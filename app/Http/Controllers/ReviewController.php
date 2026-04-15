@@ -71,8 +71,9 @@ class ReviewController extends Controller
             foreach ($genre->categories as $category) {
                 if (!$categories->has($category->id)) {
                     $categories->put($category->id, [
-                        'id'   => $category->id,
-                        'name' => $category->getTranslations('name'),
+                        'id'          => $category->id,
+                        'name'        => $category->getTranslations('name'),
+                        'description' => $category->getTranslations('description'),
                     ]);
                 }
             }

@@ -10,23 +10,7 @@ use Illuminate\Support\Collection;
 
 class ScoringService
 {
-    private const LETTER_GRADES = [
-        97 => 'A+',
-        93 => 'A',
-        90 => 'A-',
-        87 => 'B+',
-        83 => 'B',
-        80 => 'B-',
-        77 => 'C+',
-        73 => 'C',
-        70 => 'C-',
-        67 => 'D+',
-        63 => 'D',
-        60 => 'D-',
-        0  => 'F',
-    ];
-
-    public function calculateWeightedScore(Review $review): int
+    public function calculateWeightedScore(Review $review): float
     {
         $product = $review->product->load(['genres.categories']);
 
@@ -44,29 +28,37 @@ class ScoringService
         $weightMap = array_slice($weightMap, 0, 15, true);
 
         $scores      = $review->scores->keyBy('category_id');
-        $numerator   = 0;
-        $denominator = 0;
+        $numerator   = 0.0;
+        $denominator = 0.0;
 
         foreach ($weightMap as $categoryId => $weight) {
-            $score        = $scores->get($categoryId)?->score ?? 0;
+            $score        = (float) ($scores->get($categoryId)?->score ?? 0);
             $numerator   += $score * $weight;
             $denominator += $weight;
         }
 
-        return $denominator > 0 ? (int) round(($numerator / $denominator) * 10) : 0;
-    }
-
-    public function calculateLetterGrade(int $score): string
-    {
-        if ($score === 100) return 'S';
-
-        foreach (self::LETTER_GRADES as $threshold => $grade) {
-            if ($score >= $threshold) {
-                return $grade;
-            }
+        if ($denominator <= 0) {
+            return 0.0;
         }
 
-        return 'F';
+        return floor(($numerator / $denominator) * 10) / 10;
+    }
+
+    public function calculateLetterGrade(float $score): string
+    {
+        if ($score >= 10.0) return 'S';
+
+        $integer    = (int) floor($score);
+        $hasDecimal = ($score - $integer) >= 0.1;
+
+        return match(true) {
+            $integer >= 9 => $hasDecimal ? 'A+' : 'A',
+            $integer >= 8 => $hasDecimal ? 'B+' : 'B',
+            $integer >= 7 => $hasDecimal ? 'C+' : 'C',
+            $integer >= 6 => $hasDecimal ? 'D+' : 'D',
+            $integer >= 5 => $hasDecimal ? 'E+' : 'E',
+            default       => 'F',
+        };
     }
 
     public function recalculateProductScores(Product $product, ?string $role = null): void
@@ -91,7 +83,7 @@ class ScoringService
         }
     }
 
-    public function calculateTrustScore(Product $product, User $user): ?int
+    public function calculateTrustScore(Product $product, User $user): ?float
     {
         $followedIds = $user->following()->pluck('followed_id');
 
@@ -104,15 +96,19 @@ class ScoringService
             ->whereNull('banned_at')
             ->pluck('weighted_score');
 
-        return $scores->isNotEmpty() ? (int) round($scores->avg()) : null;
+        if ($scores->isEmpty()) {
+            return null;
+        }
+
+        return floor($scores->avg() * 10) / 10;
     }
 
-    private function average(Collection $reviews): ?int
+    private function average(Collection $reviews): ?float
     {
         if ($reviews->isEmpty()) {
             return null;
         }
 
-        return (int) round($reviews->avg('weighted_score'));
+        return floor($reviews->avg('weighted_score') * 10) / 10;
     }
 }

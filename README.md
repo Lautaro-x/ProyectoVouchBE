@@ -141,10 +141,10 @@ El núcleo diferenciador de la plataforma. Calcula puntuaciones ponderadas por c
 
 **Fórmula:**
 ```
-weighted_score = round( Σ(score × weight) / Σ(weights) × 10 )
+weighted_score = floor( Σ(score × weight) / Σ(weights) × 10 ) / 10
 ```
 
-Los scores de categoría son enteros 0–10. Los pesos se definen en `Genre_x_Category.weight` (decimal 0.00–1.00). El resultado final es un entero 0–100.
+Los scores de categoría son enteros 0–10. Los pesos se definen en `Genre_x_Category.weight` (decimal 0.00–1.00). El resultado final es un decimal `0.0–10.0` truncado a 1 decimal (nunca se redondea).
 
 **Algoritmo multi-género (MAX weight):**
 
@@ -157,15 +157,17 @@ Esto evita que géneros secundarios diluyan el peso de un criterio ya cubierto p
 
 **Escala de letras:**
 
-| Rango | Letra | Rango | Letra |
+| Score | Letra | Score | Letra |
 |---|---|---|---|
-| 100 | **S** | 77-79 | C+ |
-| 97-99 | A+ | 73-76 | C |
-| 93-96 | A | 70-72 | C- |
-| 90-92 | A- | 67-69 | D+ |
-| 87-89 | B+ | 63-66 | D |
-| 83-86 | B | 60-62 | D- |
-| 80-82 | B- | 0-59 | F |
+| 10.0 | **S** | 7.1–7.9 | C+ |
+| 9.1–9.9 | A+ | 7.0 | C |
+| 9.0 | A | 6.1–6.9 | D+ |
+| 8.1–8.9 | B+ | 6.0 | D |
+| 8.0 | B | 5.1–5.9 | E+ |
+| — | — | 5.0 | E |
+| — | — | 0.0–4.9 | F |
+
+La escala usa **truncado**, no redondeo: 9.9 → A+ (no S), 8.9 → B+ (no A).
 
 **Triple nota por producto:**
 

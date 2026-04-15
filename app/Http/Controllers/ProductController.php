@@ -40,7 +40,7 @@ class ProductController extends Controller
     {
         $products = Product::with(['score', 'platforms'])
             ->whereHas('score', fn($q) =>
-                $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 80')
+                $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 8.0')
             )
             ->get()
             ->sortByDesc(fn(Product $p) => $p->platforms->max('pivot.release_date') ?? '')
@@ -60,8 +60,9 @@ class ProductController extends Controller
             foreach ($genre->categories as $category) {
                 if (!$categories->has($category->id)) {
                     $categories->put($category->id, [
-                        'id'   => $category->id,
-                        'name' => $category->getTranslations('name'),
+                        'id'          => $category->id,
+                        'name'        => $category->getTranslations('name'),
+                        'description' => $category->getTranslations('description'),
                     ]);
                 }
             }
