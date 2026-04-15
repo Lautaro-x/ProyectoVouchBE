@@ -11,6 +11,31 @@ class ProductController extends Controller
 {
     public function __construct(private ScoringService $scoring) {}
 
+    public function games(Request $request): JsonResponse
+    {
+        $paginator = Product::with('score')
+            ->addSelect([
+                'Products.*',
+                'latest_release' => \DB::table('Product_x_Platform')
+                    ->selectRaw('MAX(release_date)')
+                    ->whereColumn('product_id', 'Products.id'),
+            ])
+            ->where('type', 'game')
+            ->when(
+                $request->filled('search'),
+                fn($q) => $q->where('Products.title', 'like', '%' . $request->search . '%')
+            )
+            ->orderByDesc('latest_release')
+            ->paginate(12);
+
+        return response()->json([
+            'data'         => collect($paginator->items())->map(fn(Product $p) => $this->formatCard($p)),
+            'current_page' => $paginator->currentPage(),
+            'last_page'    => $paginator->lastPage(),
+            'total'        => $paginator->total(),
+        ]);
+    }
+
     public function relevant(): JsonResponse
     {
         $products = Product::with(['score', 'platforms'])

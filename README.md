@@ -432,7 +432,7 @@ php artisan igdb:import-top --limit=10
 ### Fase 2 — API pública
 - [x] `GET /api/products/relevant` — top 6 productos con score ≥ 80 (B-), ordenados por `release_year` desc. Devuelve `slug`, `type` y `score_type` (global/pro) según cuál sea mayor.
 - [x] `GET /api/products/{type}/{slug}` — detalle completo: géneros, game_details, plataformas con `purchase_url`, scores con letter_grade. Si el request incluye token Sanctum válido, añade `user_review` con la nota del usuario. Devuelve 404 si el type no coincide.
-- [ ] Endpoints públicos: listado/catálogo de productos
+- [x] `GET /api/games?search=&page=1` — lista paginada de juegos (12 por página), ordenados por `MAX(release_date)` desc. Búsqueda por título con `LIKE`. Responde `{ data, current_page, last_page, total }`.
 - [x] `GET /api/products/{id}/review-form` — datos del producto + categorías únicas de sus géneros para construir el formulario de crítica.
 - [x] `POST /api/reviews` (auth + not.banned) — crea una review con scores por categoría. Calcula `weighted_score` y `letter_grade` vía `ScoringService`. Recalcula `ProductScores`. Devuelve 422 si el usuario ya tiene review del producto.
 - [x] `GET /api/reviews/{review}/edit-form` (auth + not.banned) — devuelve los datos del producto + categorías + scores actuales + body de la review para pre-rellenar el formulario de edición. Valida que el usuario sea el autor.

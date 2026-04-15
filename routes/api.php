@@ -12,6 +12,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/google', [AuthController::class, 'googleLogin']);
 });
 
+Route::get('/games', [ProductController::class, 'games']);
 Route::get('/products/relevant', [ProductController::class, 'relevant']);
 Route::get('/products/{id}/review-form', [ProductController::class, 'reviewForm']);
 Route::get('/products/{type}/{slug}', [ProductController::class, 'show']);
