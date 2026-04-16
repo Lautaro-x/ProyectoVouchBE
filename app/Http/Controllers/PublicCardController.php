@@ -31,6 +31,8 @@ class PublicCardController extends Controller
             ->filter(fn($link) => !empty($link['url']) && ($link['shared'] ?? false))
             ->map(fn($link) => $link['url']);
 
+        $viewer = auth('sanctum')->user();
+
         return response()->json([
             'id'              => $user->id,
             'name'            => $user->name,
@@ -44,6 +46,7 @@ class PublicCardController extends Controller
             'card_big_bg'     => $user->card_big_bg,
             'card_mid_bg'     => $user->card_mid_bg,
             'card_mini_bg'    => $user->card_mini_bg,
+            'is_following'    => $viewer ? $viewer->following()->where('followed_id', $user->id)->exists() : false,
         ]);
     }
 }

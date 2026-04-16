@@ -317,7 +317,7 @@ Products
        │
        └── Reviews ───────────────────── Users
              id, user_id, product_id
-             body (varchar 255, nullable)
+             body (varchar 2200, nullable)
              weighted_score (int 0–100), letter_grade
              banned_at (timestamp nullable), ban_reason (string nullable)
              timestamps · unique(user_id, product_id)
@@ -496,6 +496,28 @@ Desde "Mi perfil público" el usuario puede:
 - Copiar el enlace de cada card con botón "Copiar enlace" (feedback visual 2s)
 - Ver el botón "Fiarme" (deshabilitado en el propio perfil con texto "Es tu perfil")
 
+Los "Ver perfil" de Mid y Mini Card apuntan a `/u/:id` (usando ID en lugar de nombre para evitar colisiones y cambios de nick).
+
+---
+
+### Perfil público responsive (`/u/:id`)
+
+**Ruta:** `GET /u/:id` → `PublicProfileComponent`
+
+Página pública sin header ni breadcrumb que muestra el perfil de cualquier usuario en diseño responsive, basado en la estética de Big Card pero adaptado a cualquier tamaño de pantalla.
+
+**Estructura:**
+- Fondo `#111` de pantalla completa
+- Card centrada con `max-width: 620px`
+- Soporte para imagen de fondo (si el usuario la configuró)
+- Avatar, nombre, badges, estadísticas (reseñas + seguidores), últimas 3 reseñas con portadas y nota, email (si público), links sociales
+- Responsive: en móvil (`≤480px`) el avatar y los paddings se reducen
+
+**Comportamiento:**
+- El nombre de usuario en las reseñas del detalle de producto (`/product/:type/:slug`) es un `<a [routerLink]="['/u', r.user.id]">` que navega a esta página
+- Las cards Mid y Mini redirigen al perfil del usuario con "Ver perfil completo →" / "Ver perfil →" apuntando a `/u/:id`
+- `RenderMode.Server` para SSR + OG tags (igual que las cards)
+
 ---
 
 ## Roadmap
@@ -524,7 +546,7 @@ Desde "Mi perfil público" el usuario puede:
 - [x] `POST /api/reviews` (auth + not.banned) — crea una review con scores por categoría. Calcula `weighted_score` y `letter_grade` vía `ScoringService`. Recalcula `ProductScores`. Devuelve 422 si el usuario ya tiene review del producto.
 - [x] `GET /api/reviews/{review}/edit-form` (auth + not.banned) — devuelve los datos del producto + categorías + scores actuales + body de la review para pre-rellenar el formulario de edición. Valida que el usuario sea el autor.
 - [x] `PUT /api/reviews/{review}` (auth + not.banned) — actualiza scores y body de una review existente. Recalcula `weighted_score`, `letter_grade` y `ProductScores`. Valida autoría.
-- [ ] Listar reseñas por producto
+- [x] `GET /api/products/{id}/reviews` — lista paginada de reseñas públicas de un producto (6 por página). Excluye reseñas baneadas y de usuarios con `reviews_public = false` o baneados. Devuelve `user.id`, `user.name`, `user.avatar`, `letter_grade`, `body`, `created_at`.
 - [ ] Trust Score en tiempo real (Follows del usuario autenticado)
 - [ ] Validación de críticas (útil / no útil)
 
