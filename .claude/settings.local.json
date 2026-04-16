@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find d:/laragon/www/ProyectoVouchBE/database/migrations -name \"*.php\" -exec grep -l \"index\\\\|unique\" {} \\\\;)",
+      "Bash(python3)"
+    ]
+  }
+}

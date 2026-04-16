@@ -27,6 +27,11 @@ class PublicCardController extends Controller
                 ],
             ]);
 
+        $user->loadCount([
+            'reviews as reviews_count' => fn($q) => $q->whereNull('banned_at'),
+            'followers as followers_count',
+        ]);
+
         $sharedSocials = collect($user->social_links ?? [])
             ->filter(fn($link) => !empty($link['url']) && ($link['shared'] ?? false))
             ->map(fn($link) => $link['url']);
@@ -40,8 +45,8 @@ class PublicCardController extends Controller
             'email'           => $user->show_email ? $user->email : null,
             'badges'          => $user->badges ?? [],
             'social_links'    => $sharedSocials,
-            'reviews_count'   => $user->reviews()->whereNull('banned_at')->count(),
-            'followers_count' => $user->followers()->count(),
+            'reviews_count'   => $user->reviews_count,
+            'followers_count' => $user->followers_count,
             'last_reviews'    => $lastReviews,
             'card_big_bg'     => $user->card_big_bg,
             'card_mid_bg'     => $user->card_mid_bg,

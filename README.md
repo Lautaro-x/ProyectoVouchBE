@@ -450,7 +450,7 @@ GET    /api/public/card/{user}     (público, sin auth) → datos de la card pú
 - `card_mid_bg` (string nullable) — URL de fondo para la Mid Card (480×480)
 - `card_mini_bg` (string nullable) — URL de fondo para la Mini Card (360×160)
 
-**Decisión:** Los fondos de las cards son URLs externas (no se alojan imágenes). Se validan como `nullable|string|max:500`.
+**Decisión:** Los fondos de las cards son URLs externas (no se alojan imágenes). Se validan como `nullable|url|max:500`. El campo `avatar` y los campos `social_links.*.url` también se validan con la regla `url` para prevenir la inyección de valores arbitrarios.
 
 ---
 
@@ -564,3 +564,38 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [ ] Job diario de snapshot histórico de ProductScores
 - [ ] Laravel Queues para recálculo asíncrono de puntuaciones
 - [ ] Caché de puntuaciones (Redis)
+
+---
+
+## Seguridad y performance (audit 2026-04-16)
+
+### Seguridad
+
+**Rate limiting en `POST /api/auth/google`**
+Añadido `throttle:10,1` al endpoint de login con Google: máximo 10 intentos por minuto por IP. Previene ataques de fuerza bruta contra el flujo OAuth.
+
+**Validación de URLs en `UserProfileController::update()`**
+Los campos `avatar`, `card_big_bg`, `card_mid_bg`, `card_mini_bg` y `social_links.*.url` ahora usan la regla `url` de Laravel en lugar de `string`. Esto rechaza valores arbitrarios que no sean URLs válidas.
+
+### Performance
+
+**Eliminación de N+1 queries**
+`PublicCardController::show()` y `UserProfileController::cardData()` ejecutaban dos queries separadas para contar reseñas y seguidores. Reemplazado por `$user->loadCount([...])` que resuelve ambos conteos en una sola query:
+```php
+$user->loadCount([
+    'reviews as reviews_count' => fn($q) => $q->whereNull('banned_at'),
+    'followers as followers_count',
+]);
+```
+
+**Índices de base de datos** (migración `2026_04_16_000002`)
+Añadidos índices en las columnas más consultadas en WHERE/ORDER BY:
+- `reviews.banned_at` — filtrado de reseñas activas vs. baneadas
+- `reviews.product_id` — relación reviews ↔ product
+- `Product_x_Platform.release_date` — ordenado en `GET /api/games`
+
+**`ChangeDetectionStrategy.OnPush`** (Frontend)
+Aplicado a los 26 componentes Angular de la aplicación. Angular solo re-evalúa el árbol de vistas cuando cambia una referencia de `@Input`, se emite un evento, o un `signal` lo fuerza. Con signals (que ya usa la app) esto es totalmente seguro y elimina ciclos de detección innecesarios.
+
+**`takeUntilDestroyed`** (Frontend)
+`GameListComponent` migraba el patrón manual `Subject` + `takeUntil(destroy$)` + `ngOnDestroy`. Reemplazado por `takeUntilDestroyed(destroyRef)` desde `@angular/core/rxjs-interop`, eliminando el boilerplate. `HeaderComponent` también añade `takeUntilDestroyed()` a la suscripción de eventos del router (llamado sin args en el constructor, que es contexto de inyección).

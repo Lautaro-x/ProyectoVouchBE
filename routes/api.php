@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
-    Route::post('/google', [AuthController::class, 'googleLogin']);
+    Route::post('/google', [AuthController::class, 'googleLogin'])->middleware('throttle:10,1');
 });
 
 Route::get('/games', [ProductController::class, 'games']);
