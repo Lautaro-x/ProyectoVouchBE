@@ -24,6 +24,7 @@ API REST del proyecto Vouch, una plataforma social de críticas ponderadas para 
 app/
 ├── Console/Commands/
 │   ├── IgdbImportTopCommand.php
+│   ├── RecalculateScoresCommand.php
 │   └── ResetContentCommand.php
 ├── Http/
 │   ├── Controllers/
@@ -168,6 +169,8 @@ Esto evita que géneros secundarios diluyan el peso de un criterio ya cubierto p
 | — | — | 0.0–4.9 | F |
 
 La escala usa **truncado**, no redondeo: 9.9 → A+ (no S), 8.9 → B+ (no A).
+
+**Fix de precisión flotante:** Antes del truncado se aplica `round($raw, 10)` para eliminar ruido de coma flotante. Sin esto, un promedio matemáticamente exacto de 10.0 podía resultar en `9.999999...` y degradar a A+.
 
 **Triple nota por producto:**
 
@@ -394,6 +397,23 @@ php artisan igdb:import-top --limit=10
 
 ---
 
+### `scores:recalculate`
+Recalcula el `weighted_score` y `letter_grade` de todas las reseñas existentes y actualiza `ProductScores`. Útil tras corregir la fórmula de cálculo o cambiar los pesos de categorías.
+
+```bash
+php artisan scores:recalculate
+```
+
+Flujo:
+1. Carga todas las reseñas con sus scores y la jerarquía `product → genres → categories`
+2. Aplica `ScoringService::calculateWeightedScore()` y `calculateLetterGrade()` a cada una
+3. Persiste los nuevos valores en `Reviews`
+4. Recalcula `global_score` y `pro_score` en `ProductScores` para cada producto afectado
+
+Muestra una barra de progreso durante la ejecución.
+
+---
+
 ### `db:reset-content`
 Limpia todas las tablas de contenido (productos, géneros, categorías, plataformas, reseñas y sus tablas cruzadas) preservando los usuarios. Tras la limpieza re-ejecuta `CategorySeeder`, `GenreSeeder` y `GenreCategorySeeder`.
 
@@ -410,6 +430,71 @@ Flujo habitual para reiniciar datos desde cero:
 php artisan db:reset-content
 php artisan igdb:import-top --limit=10
 ```
+
+---
+
+### Perfil de usuario (`UserProfileController`)
+
+**Endpoints:**
+```
+GET    /api/user/profile           (auth + not.banned) → datos del perfil del usuario
+PATCH  /api/user/profile           (auth + not.banned) → actualiza nombre (máx 25 chars), avatar, bio, social_links, show_email, reviews_public, card_big_bg, card_mid_bg, card_mini_bg
+GET    /api/user/profile/card      (auth + not.banned) → datos de la card pública del usuario autenticado
+GET    /api/public/card/{user}     (público, sin auth) → datos de la card pública de cualquier usuario por ID
+```
+
+`cardData()` devuelve: `id`, `name`, `avatar`, `email` (solo si `show_email`), `badges`, `social_links` (solo entradas compartidas, mapa `red → url`), `reviews_count`, `followers_count`, últimas 5 reseñas de juegos con `product.title`, `product.slug`, `product.cover_image`, `letter_grade`, más `card_big_bg`, `card_mid_bg`, `card_mini_bg`.
+
+**Campos adicionales en `Users`** (migración `2026_04_15_000004`):
+- `card_big_bg` (string nullable) — URL de fondo para la Big Card (720×430)
+- `card_mid_bg` (string nullable) — URL de fondo para la Mid Card (480×480)
+- `card_mini_bg` (string nullable) — URL de fondo para la Mini Card (360×160)
+
+**Decisión:** Los fondos de las cards son URLs externas (no se alojan imágenes). Se validan como `nullable|string|max:500`.
+
+---
+
+### Sistema de seguimiento (`FollowController`)
+
+**Endpoints:**
+```
+POST   /api/user/follow/{user}    (auth + not.banned) → seguir a un usuario
+DELETE /api/user/follow/{user}    (auth + not.banned) → dejar de seguir a un usuario
+```
+
+**Decisión de arquitectura:** Se usa `syncWithoutDetaching` para `follow` (idempotente, no falla si ya sigue). Para `unfollow` se usa `detach`. Auto-seguirse devuelve 422.
+
+La tabla `Follows` es auto-referencial (`follower_id`, `followed_id` → `users.id`). Las relaciones en `User` son `following()` y `followers()` via `belongsToMany(User::class, 'Follows', ...)`.
+
+---
+
+### Reseñas del usuario (`UserReviewController`)
+
+**Endpoints:**
+```
+GET  /api/user/reviews/games   (auth + not.banned) → reseñas propias de juegos, paginadas 24, búsqueda ?search=
+```
+
+Devuelve paginación con `data[]` donde cada item incluye `letter_grade`, `weighted_score` y `product` (`title`, `slug`, `cover_image`). Ordenado por `created_at` desc.
+
+---
+
+### Cards públicas compartibles (Frontend)
+
+Tres tamaños de card, pensadas para embeberse o compartirse en redes. El CSS vive **dentro del `<div>` de la card** (via `<style>`) con prefijos de clase únicos para ser portables fuera de la app:
+
+| Card | Tamaño | Prefijo CSS | Ruta standalone |
+|---|---|---|---|
+| Big Card | 720×430 px | `.vfc-*` | `/card/big/:id` |
+| Mid Card | 480×480 px | `.vsc-*` | `/card/mid/:id` |
+| Mini Card | 360×160 px | `.vmc-*` | `/card/mini/:id` |
+
+Las rutas standalone (`/card/big/:id`, `/card/mid/:id`, `/card/mini/:id`) son páginas públicas (sin auth) que muestran únicamente la card centrada sobre fondo `#111`. Usan `PublicCardController@show` en el backend.
+
+Desde "Mi perfil público" el usuario puede:
+- Editar la URL de fondo de cada card (guardado único con "Guardar fondos")
+- Copiar el enlace de cada card con botón "Copiar enlace" (feedback visual 2s)
+- Ver el botón "Fiarme" (deshabilitado en el propio perfil con texto "Es tu perfil")
 
 ---
 
@@ -444,6 +529,8 @@ php artisan igdb:import-top --limit=10
 - [ ] Validación de críticas (útil / no útil)
 
 ### Fase 3 — Capa social
+- [x] Sistema de seguimiento (Follows) — ver sección *Sistema de seguimiento*
+- [x] Perfil de usuario con sección pública (cards compartibles) — ver sección *Perfil público*
 - [ ] Niveles de usuario (Entusiasta / Experto)
 - [ ] Sistema de notificaciones
 

@@ -41,7 +41,9 @@ class ScoringService
             return 0.0;
         }
 
-        return floor(($numerator / $denominator) * 10) / 10;
+        $raw = round($numerator / $denominator, 10);
+
+        return floor($raw * 10) / 10;
     }
 
     public function calculateLetterGrade(float $score): string

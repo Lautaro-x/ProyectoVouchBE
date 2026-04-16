@@ -5,6 +5,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\IgdbController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\FollowController;
+use App\Http\Controllers\ProductReviewController;
+use App\Http\Controllers\PublicCardController;
+use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\UserReviewController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,12 +18,20 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/games', [ProductController::class, 'games']);
+Route::get('/public/card/{user}', [PublicCardController::class, 'show']);
 Route::get('/products/relevant', [ProductController::class, 'relevant']);
 Route::get('/products/{id}/review-form', [ProductController::class, 'reviewForm']);
+Route::get('/products/{product}/reviews', [ProductReviewController::class, 'index']);
 Route::get('/products/{type}/{slug}', [ProductController::class, 'show']);
 
 Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
+    Route::get('/user/profile', [UserProfileController::class, 'show']);
+    Route::put('/user/profile', [UserProfileController::class, 'update']);
+    Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
+    Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
+    Route::post('/user/follow/{user}', [FollowController::class, 'follow']);
+    Route::delete('/user/follow/{user}', [FollowController::class, 'unfollow']);
     Route::post('/reviews', [ReviewController::class, 'store']);
     Route::get('/reviews/{review}/edit-form', [ReviewController::class, 'editForm']);
     Route::put('/reviews/{review}', [ReviewController::class, 'update']);

@@ -23,6 +23,12 @@ class User extends Authenticatable
         'badges',
         'banned_at',
         'ban_reason',
+        'show_email',
+        'reviews_public',
+        'social_links',
+        'card_big_bg',
+        'card_mid_bg',
+        'card_mini_bg',
     ];
 
     protected $hidden = [
@@ -36,6 +42,9 @@ class User extends Authenticatable
         'password'          => 'hashed',
         'badges'            => 'array',
         'banned_at'         => 'datetime',
+        'show_email'        => 'boolean',
+        'reviews_public'    => 'boolean',
+        'social_links'      => 'array',
     ];
 
     public function isBanned(): bool
