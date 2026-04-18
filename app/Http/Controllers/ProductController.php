@@ -28,15 +28,28 @@ class ProductController extends Controller
             ->orderByDesc('latest_release')
             ->paginate(12);
 
+        $followedIds = [];
+        if ($user = $request->user('sanctum')) {
+            $followedIds = $user->following()->pluck('followed_id')->toArray();
+        }
+
         return response()->json([
-            'data'         => collect($paginator->items())->map(fn(Product $p) => $this->formatCard($p)),
+            'data'         => collect($paginator->items())->map(fn(Product $p) => array_merge(
+                $this->formatCard($p),
+                ['trust_grade' => !empty($followedIds)
+                    ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
+                        ? $this->scoring->calculateLetterGrade($ts)
+                        : null)
+                    : null,
+                ]
+            )),
             'current_page' => $paginator->currentPage(),
             'last_page'    => $paginator->lastPage(),
             'total'        => $paginator->total(),
         ]);
     }
 
-    public function relevant(): JsonResponse
+    public function relevant(Request $request): JsonResponse
     {
         $products = Product::with(['score', 'platforms'])
             ->whereHas('score', fn($q) =>
@@ -44,11 +57,24 @@ class ProductController extends Controller
             )
             ->get()
             ->sortByDesc(fn(Product $p) => $p->platforms->max('pivot.release_date') ?? '')
-            ->take(6)
-            ->map(fn(Product $p) => $this->formatCard($p))
-            ->values();
+            ->take(6);
 
-        return response()->json($products);
+        $followedIds = [];
+        if ($user = $request->user('sanctum')) {
+            $followedIds = $user->following()->pluck('followed_id')->toArray();
+        }
+
+        return response()->json(
+            $products->map(fn(Product $p) => array_merge(
+                $this->formatCard($p),
+                ['trust_grade' => !empty($followedIds)
+                    ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
+                        ? $this->scoring->calculateLetterGrade($ts)
+                        : null)
+                    : null,
+                ]
+            ))->values()
+        );
     }
 
     public function reviewForm(int $id): JsonResponse
@@ -88,7 +114,8 @@ class ProductController extends Controller
         $globalScore = $product->score?->global_score;
         $proScore    = $product->score?->pro_score;
 
-        $userReview = null;
+        $userReview  = null;
+        $trustScore  = null;
         if ($user = $request->user('sanctum')) {
             $review = $product->reviews()
                 ->where('user_id', $user->id)
@@ -101,6 +128,8 @@ class ProductController extends Controller
                     'letter_grade'   => $review->letter_grade,
                 ];
             }
+
+            $trustScore = $this->scoring->calculateTrustScore($product, $user);
         }
 
         return response()->json([
@@ -131,6 +160,8 @@ class ProductController extends Controller
                 'global_grade' => $globalScore !== null ? $this->scoring->calculateLetterGrade($globalScore) : null,
                 'pro_score'    => $proScore,
                 'pro_grade'    => $proScore !== null ? $this->scoring->calculateLetterGrade($proScore) : null,
+                'trust_score'  => $trustScore,
+                'trust_grade'  => $trustScore !== null ? $this->scoring->calculateLetterGrade($trustScore) : null,
             ],
             'user_review' => $userReview,
         ]);

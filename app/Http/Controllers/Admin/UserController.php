@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\BadgeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -68,5 +69,19 @@ class UserController extends Controller
         $user->update($data);
 
         return response()->json($user);
+    }
+
+    public function grantVerified(User $user): JsonResponse
+    {
+        app(BadgeService::class)->award($user, 'verificado');
+
+        return response()->json(['badges' => $user->fresh()->badges ?? []]);
+    }
+
+    public function revokeVerified(User $user): JsonResponse
+    {
+        app(BadgeService::class)->revoke($user, 'verificado');
+
+        return response()->json(['badges' => $user->fresh()->badges ?? []]);
     }
 }

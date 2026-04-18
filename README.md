@@ -547,14 +547,13 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [x] `GET /api/reviews/{review}/edit-form` (auth + not.banned) — devuelve los datos del producto + categorías + scores actuales + body de la review para pre-rellenar el formulario de edición. Valida que el usuario sea el autor.
 - [x] `PUT /api/reviews/{review}` (auth + not.banned) — actualiza scores y body de una review existente. Recalcula `weighted_score`, `letter_grade` y `ProductScores`. Valida autoría.
 - [x] `GET /api/products/{id}/reviews` — lista paginada de reseñas públicas de un producto (6 por página). Excluye reseñas baneadas y de usuarios con `reviews_public = false` o baneados. Devuelve `user.id`, `user.name`, `user.avatar`, `letter_grade`, `body`, `created_at`.
-- [ ] Trust Score en tiempo real (Follows del usuario autenticado)
-- [ ] Validación de críticas (útil / no útil)
+- [x] Trust Score en tiempo real (Follows del usuario autenticado) — `ScoringService::calculateTrustScore()`, se muestra en el detalle de producto solo si el usuario sigue a alguien que ha reseñado el juego; borde discontinuo morado para diferenciarlo
 
 ### Fase 3 — Capa social
 - [x] Sistema de seguimiento (Follows) — ver sección *Sistema de seguimiento*
 - [x] Perfil de usuario con sección pública (cards compartibles) — ver sección *Perfil público*
-- [ ] Niveles de usuario (Entusiasta / Experto)
-- [ ] Sistema de notificaciones
+- [x] Sistema de badges — ver sección *Badges y logros*
+- [x] Sistema de encuestas — ver sección *Sistema de encuestas*
 
 ### Fase 4 — Extensibilidad
 - [ ] MovieDetails (director, imdb_id, duration)
@@ -564,6 +563,49 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [ ] Job diario de snapshot histórico de ProductScores
 - [ ] Laravel Queues para recálculo asíncrono de puntuaciones
 - [ ] Caché de puntuaciones (Redis)
+
+---
+
+## Badges y logros
+
+Sistema de logros automáticos basado en hitos de actividad. Los badges se almacenan en `users.badges` (JSON array de slugs). El servicio central es `BadgeService` (`app/Services/BadgeService.php`).
+
+### Badges manuales (admin)
+
+| Badge | Asignación |
+|---|---|
+| `verificado` | Admin desde `/api/admin/users/{id}/badge/verify` |
+
+### Badges automáticos — reseñas
+
+| Badge | Hito |
+|---|---|
+| `critico-rapido` | Primera reseña de un producto sin reseñas previas |
+| `critico-novel` | 10 reseñas |
+| `critico-junior` | 20 reseñas |
+| `critico-senior` | 50 reseñas |
+| `critico-maestro` | 100 reseñas |
+| `el-critico` | 200 reseñas |
+
+### Badges automáticos — seguidores
+
+| Badge | Hito |
+|---|---|
+| `critico-amigo` | 10 seguidores |
+| `critico-solicitado` | 100 seguidores |
+| `critico-fiable` | 1 000 seguidores |
+| `critico-famoso` | 3 000 seguidores |
+| `critico-influyente` | 6 000 seguidores |
+
+**Sistema de reclamación (claim-based):** Los badges ya no se asignan automáticamente. El flujo es:
+1. `GET /api/user/badges` — devuelve el progreso de cada badge (`current`, `threshold`, `awarded`, `claimable`).
+2. `POST /api/user/badges/{slug}/claim` — el backend revalida los requisitos antes de otorgar el badge. Si el usuario no cumple los criterios o el badge ya fue otorgado, devuelve 422. Solo los badges cuyo `claimable = true` en el paso 1 pueden reclamarse.
+
+`BadgeService::getProgress()` calcula el estado en tiempo real. `claim()` llama a `getProgress()` internamente para validar antes de otorgar, por lo que no es posible auto-asignarse un badge sin cumplir el requisito real.
+
+**Admin — verificado:** `POST /api/admin/users/{user}/badge/verify` otorga el badge; `DELETE` lo revoca. El panel admin muestra un botón `✓` por fila que se activa visualmente cuando el usuario ya está verificado.
+
+**Admin — verificado:** `POST /api/admin/users/{user}/badge/verify` otorga el badge; `DELETE` lo revoca. El panel admin muestra un botón `✓` por fila que se activa visualmente cuando el usuario ya está verificado.
 
 ---
 
@@ -599,3 +641,126 @@ Aplicado a los 26 componentes Angular de la aplicación. Angular solo re-evalúa
 
 **`takeUntilDestroyed`** (Frontend)
 `GameListComponent` migraba el patrón manual `Subject` + `takeUntil(destroy$)` + `ngOnDestroy`. Reemplazado por `takeUntilDestroyed(destroyRef)` desde `@angular/core/rxjs-interop`, eliminando el boilerplate. `HeaderComponent` también añade `takeUntilDestroyed()` a la suscripción de eventos del router (llamado sin args en el constructor, que es contexto de inyección).
+
+---
+
+## Cards compartibles — i18n completa (2026-04-17)
+
+Todas las cadenas de texto en las tres cards públicas (Big, Mid, Mini) y en la sección "Mi perfil público" ahora usan el sistema de internacionalización de la app.
+
+**Qué se tradujo:**
+- Etiquetas `reseñas` / `seguidores` / `Mis últimas reseñas` / `Ver perfil completo →` en `MidCardPageComponent` — antes hardcodeadas en español.
+- Botones de seguir/dejar de seguir (`fiarme`, `following`, `fiarme_self`) y botón de copiar enlace en `UserProfileCardComponent` (Big Card y perfil público).
+- Todos los nombres de badges en los tres contextos donde aparecen: `UserProfileCardComponent`, `MidCardPageComponent` y las cards inline de `UserPublicProfileComponent`.
+
+**Cómo funciona:**
+- Los badge slugs (`critico-senior`, `el-critico`, etc.) se traducen con la clave dinámica `'badges.' + slug | transloco`, apuntando a la sección `badges` de cada archivo i18n.
+- Los 5 idiomas del proyecto (es, en, fr, pt, it) tienen la sección `badges` completa con los 11 slugs.
+- `MidCardPageComponent` e `UserPublicProfileComponent` eliminaron su mapa hardcodeado `BADGE_LABELS` y ahora delegan en transloco. El método `badgeLabel()` fue eliminado de ambos componentes.
+
+---
+
+## Sistema de encuestas (2026-04-18)
+
+Permite a los administradores crear encuestas temporales con opciones de respuesta. Los usuarios registrados que no hayan respondido ven un icono en el header mientras la encuesta está activa.
+
+### Modelos
+
+- `Survey` — `title`, `question`, `starts_at`, `ends_at`
+- `SurveyOption` — `survey_id`, `text`
+- `SurveyResponse` — `survey_id`, `user_id`, `survey_option_id` — unique(`survey_id`, `user_id`)
+
+### Backend
+
+**Admin (requiere role admin):**
+```
+GET    /api/admin/surveys              → lista con estado (upcoming|active|ended) y conteo de respuestas
+POST   /api/admin/surveys              → crea encuesta + opciones
+GET    /api/admin/surveys/{id}         → detalle
+PUT    /api/admin/surveys/{id}         → actualiza (borra y recrea opciones)
+DELETE /api/admin/surveys/{id}         → elimina
+```
+
+**Usuarios autenticados:**
+```
+GET    /api/surveys/active             → encuesta activa que el usuario no ha respondido aún (null si no hay)
+POST   /api/surveys/{survey}/respond   → registra la respuesta (422 si ya respondió o la encuesta no está activa)
+```
+
+`SurveyController::active()` filtra con `whereDoesntHave('responses', fn($q) => $q->where('user_id', $user->id))` para devolver solo encuestas sin respuesta del usuario. El estado (`upcoming|active|ended`) se calcula en tiempo real comparando las fechas.
+
+### Frontend
+
+**Admin — `/admin/surveys`:** CRUD completo con formulario de opciones dinámico (N opciones, añadir/quitar). Pastillas de estado coloreadas (activa=verde, próxima=amarillo, finalizada=gris).
+
+**Header:** Al hacer login se carga la encuesta activa vía `toObservable(this.authService.currentUser)`. Si existe, aparece un icono con animación CSS (`@keyframes survey-shake`) que vibra al hover. Al clicar, se abre el `DialogComponent` con las opciones como radio buttons. Al enviar se muestra un mensaje de agradecimiento 2 segundos y se cierra automáticamente ocultando el icono.
+
+**Migración necesaria:**
+```bash
+php artisan migrate
+```
+
+Crea las tablas `surveys`, `survey_options`, `survey_responses`.
+
+### i18n
+
+Claves añadidas en los 5 idiomas (es, en, fr, pt, it):
+- `admin.nav.surveys` — enlace en el nav del panel admin
+- `admin.surveys.*` — textos del CRUD de encuestas
+- `survey.*` — icono del header, botón de envío y mensaje de agradecimiento
+
+### Mejoras posteriores (2026-04-18)
+
+- **Multilingüe:** `title`, `question` y `text` de opciones pasaron a columnas JSON gestionadas con `spatie/laravel-translatable`. Se requieren los 5 idiomas (es, en, fr, pt, it) antes de guardar. Estado `missing_translations` si algún campo no está completo.
+- **Tooltip de selección:** En el header ya no se abre la encuesta directamente, sino un tooltip con el listado de encuestas activas. El usuario elige cuál responder.
+- **Resultados:** Botón "Resultados" en el admin abre un diálogo con barras de progreso por opción mostrando cantidad y porcentaje de respuestas. Implementado con `withCount('responses')` en `SurveyOption`.
+- **Timezone fix:** `datetime-local` enviaba la hora local como UTC. Se añadieron helpers `localToUTC()` / `utcToLocal()` en el componente para conversión bidireccional.
+
+---
+
+## Sistema de avisos (2026-04-18)
+
+Permite a los administradores publicar avisos informativos con título y cuerpo multilingüe. A diferencia de las encuestas, el icono en el header no desaparece al cerrar el modal, permitiendo releer el aviso.
+
+### Modelo
+
+- `Announcement` — `title` (JSON, 5 langs), `body` (JSON, 5 langs), `starts_at`, `ends_at`
+
+### Backend
+
+**Admin (requiere role admin):**
+```
+GET    /api/admin/announcements          → lista con estado calculado
+POST   /api/admin/announcements          → crea aviso
+GET    /api/admin/announcements/{id}     → detalle
+PUT    /api/admin/announcements/{id}     → actualiza
+DELETE /api/admin/announcements/{id}     → elimina
+```
+
+**Usuarios autenticados:**
+```
+GET    /api/announcements/active         → avisos activos con todas las traducciones completas
+```
+
+El estado (`upcoming|active|ended|missing_translations`) se calcula en tiempo real. Solo se devuelven en el endpoint público los avisos con todas las traducciones completas.
+
+### Frontend
+
+**Admin — `/admin/announcements`:** CRUD con tabs de idioma y barra de progreso de traducciones. Reutiliza las clases CSS del módulo de encuestas.
+
+**Header:** Icono de megáfono separado del icono de encuesta. Abre un tooltip con el listado de avisos activos. Al clicar en uno se abre un `DialogComponent` con título y cuerpo. Cerrar el modal **no** elimina el aviso de la lista — el icono permanece visible para relectura.
+
+**Migración necesaria:**
+```bash
+php artisan migrate
+```
+
+Crea la tabla `announcements`.
+
+### i18n
+
+Claves añadidas en los 5 idiomas:
+- `admin.nav.announcements` — enlace en el nav del panel admin
+- `admin.announcements.*` — textos del CRUD de avisos
+- `announcement.icon_title` — tooltip del icono en el header
+- `admin.surveys.results_btn` / `admin.surveys.results_total` — botón y título de resultados de encuesta

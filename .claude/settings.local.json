@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(find d:/laragon/www/ProyectoVouchBE/database/migrations -name \"*.php\" -exec grep -l \"index\\\\|unique\" {} \\\\;)",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.keys\\(\\)]\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('survey', {}\\), indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('admin', {}\\).get\\('surveys', {}\\), indent=2, ensure_ascii=False\\)\\)\")"
     ]
   }
 }

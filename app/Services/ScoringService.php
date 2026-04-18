@@ -87,9 +87,15 @@ class ScoringService
 
     public function calculateTrustScore(Product $product, User $user): ?float
     {
-        $followedIds = $user->following()->pluck('followed_id');
+        return $this->trustScoreFromIds(
+            $product,
+            $user->following()->pluck('followed_id')->toArray()
+        );
+    }
 
-        if ($followedIds->isEmpty()) {
+    public function trustScoreFromIds(Product $product, array $followedIds): ?float
+    {
+        if (empty($followedIds)) {
             return null;
         }
 

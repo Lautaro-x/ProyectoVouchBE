@@ -10,7 +10,7 @@ class ProductReviewController extends Controller
     public function index(Product $product): JsonResponse
     {
         $reviews = $product->reviews()
-            ->with('user:id,name,avatar')
+            ->with('user:id,name,avatar,badges')
             ->whereNull('banned_at')
             ->whereHas('user', fn($q) => $q->where('reviews_public', true)->whereNull('banned_at'))
             ->orderByDesc('created_at')
@@ -19,7 +19,7 @@ class ProductReviewController extends Controller
         return response()->json([
             'data' => $reviews->map(fn($r) => [
                 'id'             => $r->id,
-                'user'           => $r->user->only(['id', 'name', 'avatar']),
+                'user'           => $r->user->only(['id', 'name', 'avatar', 'badges']),
                 'letter_grade'   => $r->letter_grade,
                 'weighted_score' => $r->weighted_score,
                 'body'           => $r->body,
