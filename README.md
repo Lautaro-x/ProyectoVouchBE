@@ -433,6 +433,30 @@ php artisan igdb:import-top --limit=10
 
 ---
 
+### `scores:snapshot`
+Guarda un snapshot diario de los scores de cada producto en `ProductScoreHistory`. Solo crea un registro nuevo si el score cambió respecto al último snapshot guardado. Productos sin ningún score (sin reseñas) se omiten.
+
+```bash
+php artisan scores:snapshot
+```
+
+Ejecutado automáticamente cada día a las 03:00 vía el scheduler de Laravel (`Kernel.php`). Para activarlo en producción es necesario tener el cron de Laravel configurado:
+
+```bash
+* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1
+```
+
+**Tabla `ProductScoreHistory`:**
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `product_id` | FK | Producto |
+| `global_score` | tinyInt nullable | Score de usuarios |
+| `pro_score` | tinyInt nullable | Score de críticos |
+| `snapshot_date` | date | Fecha del snapshot (unique por producto) |
+
+---
+
 ### Perfil de usuario (`UserProfileController`)
 
 **Endpoints:**
@@ -555,14 +579,29 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [x] Sistema de badges — ver sección *Badges y logros*
 - [x] Sistema de encuestas — ver sección *Sistema de encuestas*
 
-### Fase 4 — Extensibilidad
-- [ ] MovieDetails (director, imdb_id, duration)
-- [ ] SeriesDetails (director, imdb_id, seasons)
+### Fase 4 — Optimización
+- [x] Job diario de snapshot histórico de ProductScores (`scores:snapshot`)
 
-### Fase 5 — Optimización
-- [ ] Job diario de snapshot histórico de ProductScores
+### Fase 5 — Pre-producción
+- [ ] Página 404 personalizada en el frontend
+- [ ] Rate limiting en endpoints sensibles más allá del login
+- [ ] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
+- [ ] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
+- [ ] Opción "solo verificados" en encuestas y avisos (filtrar audiencia por badge `verificado`)
+- [ ] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
+- [ ] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
+- [ ] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos
+- [ ] Creación de estilos propios — identidad visual de la plataforma (tipografía, paleta, personalidad)
+- [ ] Investigar AdSense / Carbon Ads para monetización
+
+### Fase 6 — Post-producción
 - [ ] Laravel Queues para recálculo asíncrono de puntuaciones
-- [ ] Caché de puntuaciones (Redis)
+- [ ] Widget de crítico / infografía embebible — componente que el crítico pueda embeber en su blog o imagen dinámica generada con Laravel + Spatie Browsershot resumiendo su nota en un gráfico para redes sociales
+- [ ] Sistema de widget para directos — indica la última nota puesta y la nota del juego en el que está emitiendo en vivo
+- [ ] Juegos recomendados al usuario según análisis de sus propias notas (ML o scoring heurístico)
+- [ ] Investigar publicidad nativa y cómo implementarla
+- [ ] Investigar comisión de transacción de Patreon para modelo de soporte/suscripción
+- [ ] Investigar Docker para migración de infraestructura futura
 
 ---
 
@@ -764,3 +803,45 @@ Claves añadidas en los 5 idiomas:
 - `admin.announcements.*` — textos del CRUD de avisos
 - `announcement.icon_title` — tooltip del icono en el header
 - `admin.surveys.results_btn` / `admin.surveys.results_total` — botón y título de resultados de encuesta
+
+---
+
+## Refactoring de duplicación (2026-04-18)
+
+Auditoría y eliminación de código duplicado o mal factorizado, sin cambios de comportamiento.
+
+### Backend
+
+**`app/Http/Controllers/Admin/Concerns/ParsesIndexRequest.php`** (trait)
+Extrae la resolución de `sort_by`, `sort_dir` y `per_page` que se repetía en los 6 controllers admin de listado (`GenreController`, `CategoryController`, `PlatformController`, `ProductController`, `ReviewController`, `UserController`). Cada controller hace `use ParsesIndexRequest` y llama a `$this->paginationParams($request, [...])`.
+
+**`app/Models/Concerns/HasTranslatableSearch.php`** (trait)
+Scope `searchTranslatable($query, $search, $column)` con `JSON_UNQUOTE(JSON_EXTRACT(...))` para buscar en los 5 idiomas de columnas JSON. Compartido por `Genre` y `Category`. Elimina la duplicación del bloque `orWhereRaw` que existía en ambos controllers admin.
+
+**`app/Models/Concerns/HasPublishStatus.php`** (trait)
+Método `status()` que devuelve `upcoming|active|ended|missing_translations`. Compartido por `Survey` y `Announcement`. Antes era un método privado duplicado en `SurveyController` y `AnnouncementController`.
+
+**`Product::uniqueCategories()`**
+Método en el modelo `Product` que deduplica categorías provenientes de múltiples géneros. Usaban el mismo foreach anidado: `ProductController::reviewForm()` y `ReviewController::editForm()`. Ahora ambos delegan en `$product->uniqueCategories()`.
+
+**`User::cardData()`**
+Método en el modelo `User` con las ~30 líneas de last_reviews + loadCount + sharedSocials + response array. Estaba duplicado verbatim en `UserProfileController::cardData()` y `PublicCardController::show()`. Ahora:
+- `UserProfileController::cardData()` → `return response()->json($request->user()->cardData())`
+- `PublicCardController::show()` → `array_merge($user->cardData(), ['is_following' => ...])`
+
+### Frontend
+
+**`src/app/core/constants/langs.ts`**
+Constantes `LANGS` (array) y `LANG_LOCALES` (array con label de display) que se repetían inline en 6+ componentes. `LANGS` lo usan surveys y announcements; `LANG_LOCALES` lo usan los 4 CRUD de entidades traducibles (géneros, categorías, surveys, announcements).
+
+**`src/app/core/utils/datetime.utils.ts`**
+Funciones `utcToLocal()` y `localToUTC()` extraídas de `AdminSurveysComponent` y `AdminAnnouncementsComponent` donde estaban duplicadas como métodos privados.
+
+**`src/app/core/utils/localized-value.ts`**
+Función `localizedValue(record, lang)` con fallback `record[lang] || record['es'] || Object.values(record)[0] || ''`. Usada por `HeaderComponent` (aviso activo), `AdminSurveysComponent` y `AdminAnnouncementsComponent`.
+
+**`src/app/features/admin/admin-table.base.ts`** (clase abstracta)
+~40 líneas de estado y métodos de tabla compartidos (signals de página, sort, perPage, confirmDialog; métodos setSort, sortIcon, setPerPage, goTo, pages, openConfirm, confirmAction, closeConfirm) que se repetían en los 6 componentes admin de listado. Clase abstracta sin `@Component`, extendida con `extends AdminTableBase<T>`. El componente de productos sobreescribe el sort por defecto con `override sortBy = signal('title')`.
+
+**Eliminado: `src/app/features/admin/pipes/localized-name.pipe.ts`**
+Duplicado exacto de `src/app/shared/pipes/localized-name.pipe.ts`. Los 3 componentes admin que lo importaban (géneros, categorías, productos) actualizaron su import a la ruta shared.

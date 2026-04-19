@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Platform;
 use Illuminate\Http\JsonResponse;
@@ -10,12 +11,12 @@ use Illuminate\Support\Str;
 
 class PlatformController extends Controller
 {
+    use ParsesIndexRequest;
+
     public function index(Request $request): JsonResponse
     {
-        $allowed = ['id', 'name', 'type'];
-        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
-        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = min((int) $request->get('per_page', 25), 100);
+        ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
+            $this->paginationParams($request, ['id', 'name', 'type']);
 
         $query = Platform::query();
 

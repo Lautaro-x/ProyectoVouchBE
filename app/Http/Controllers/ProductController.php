@@ -81,26 +81,13 @@ class ProductController extends Controller
     {
         $product = Product::with(['genres.categories'])->findOrFail($id);
 
-        $categories = collect();
-        foreach ($product->genres as $genre) {
-            foreach ($genre->categories as $category) {
-                if (!$categories->has($category->id)) {
-                    $categories->put($category->id, [
-                        'id'          => $category->id,
-                        'name'        => $category->getTranslations('name'),
-                        'description' => $category->getTranslations('description'),
-                    ]);
-                }
-            }
-        }
-
         return response()->json([
             'id'          => $product->id,
             'title'       => $product->title,
             'cover_image' => $product->cover_image,
             'type'        => $product->type,
             'slug'        => $product->slug,
-            'categories'  => $categories->values(),
+            'categories'  => $product->uniqueCategories(),
         ]);
     }
 
@@ -141,7 +128,7 @@ class ProductController extends Controller
             'cover_image' => $product->cover_image,
             'genres'      => $product->genres->map(fn($g) => [
                 'id'   => $g->id,
-                'name' => $g->name,
+                'name' => $g->getTranslations('name'),
             ]),
             'game_details' => $product->gameDetails ? [
                 'developer' => $product->gameDetails->developer,
@@ -174,14 +161,14 @@ class ProductController extends Controller
         $best   = max($global, $pro);
 
         return [
-            'id'          => $product->id,
-            'type'        => $product->type,
-            'slug'        => $product->slug,
-            'title'       => $product->title,
-            'cover_image' => $product->cover_image,
-            'score'       => $best,
-            'letter_grade'=> $this->scoring->calculateLetterGrade($best),
-            'score_type'  => $global >= $pro ? 'global' : 'pro',
+            'id'           => $product->id,
+            'type'         => $product->type,
+            'slug'         => $product->slug,
+            'title'        => $product->title,
+            'cover_image'  => $product->cover_image,
+            'score'        => $best,
+            'letter_grade' => $this->scoring->calculateLetterGrade($best),
+            'score_type'   => $global >= $pro ? 'global' : 'pro',
         ];
     }
 }

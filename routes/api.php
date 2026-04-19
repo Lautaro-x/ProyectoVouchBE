@@ -34,14 +34,14 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
     Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
     Route::get('/user/badges', [BadgeController::class, 'progress']);
-    Route::post('/user/badges/{badge}/claim', [BadgeController::class, 'claim']);
+    Route::post('/user/badges/{badge}/claim', [BadgeController::class, 'claim'])->middleware('throttle:10,1');
     Route::delete('/user/badges/{badge}', [BadgeController::class, 'remove']);
     Route::get('/surveys/active', [SurveyController::class, 'active']);
-    Route::post('/surveys/{survey}/respond', [SurveyController::class, 'respond']);
+    Route::post('/surveys/{survey}/respond', [SurveyController::class, 'respond'])->middleware('throttle:5,1');
     Route::get('/announcements/active', [AnnouncementController::class, 'active']);
-    Route::post('/user/follow/{user}', [FollowController::class, 'follow']);
-    Route::delete('/user/follow/{user}', [FollowController::class, 'unfollow']);
-    Route::post('/reviews', [ReviewController::class, 'store']);
+    Route::post('/user/follow/{user}', [FollowController::class, 'follow'])->middleware('throttle:30,1');
+    Route::delete('/user/follow/{user}', [FollowController::class, 'unfollow'])->middleware('throttle:30,1');
+    Route::post('/reviews', [ReviewController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/reviews/{review}/edit-form', [ReviewController::class, 'editForm']);
     Route::put('/reviews/{review}', [ReviewController::class, 'update']);
 

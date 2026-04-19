@@ -21,7 +21,7 @@ class SurveyController extends Controller
                 'starts_at'       => $s->starts_at->toDateTimeString(),
                 'ends_at'         => $s->ends_at->toDateTimeString(),
                 'responses_count' => $s->responses_count,
-                'status'          => $this->status($s),
+                'status'          => $s->status(),
             ]);
 
         return response()->json($surveys);
@@ -137,25 +137,16 @@ class SurveyController extends Controller
     private function formatSurvey(Survey $survey): array
     {
         return [
-            'id'       => $survey->id,
-            'title'    => $survey->getTranslations('title'),
-            'question' => $survey->getTranslations('question'),
+            'id'        => $survey->id,
+            'title'     => $survey->getTranslations('title'),
+            'question'  => $survey->getTranslations('question'),
             'starts_at' => $survey->starts_at->toDateTimeString(),
             'ends_at'   => $survey->ends_at->toDateTimeString(),
-            'options'  => $survey->options->map(fn($o) => [
-                'id'   => $o->id,
-                'text' => $o->getTranslations('text'),
+            'options'   => $survey->options->map(fn($o) => [
+                'id'    => $o->id,
+                'text'  => $o->getTranslations('text'),
                 'order' => $o->order,
             ]),
         ];
-    }
-
-    private function status(Survey $survey): string
-    {
-        if (!$survey->hasAllTranslations()) return 'missing_translations';
-        $now = now();
-        if ($now->lt($survey->starts_at)) return 'upcoming';
-        if ($now->gt($survey->ends_at))   return 'ended';
-        return 'active';
     }
 }

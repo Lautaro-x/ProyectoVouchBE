@@ -14,11 +14,11 @@ class AnnouncementController extends Controller
         $announcements = Announcement::orderByDesc('starts_at')
             ->get()
             ->map(fn($a) => [
-                'id'       => $a->id,
-                'title'    => $a->getTranslations('title'),
+                'id'        => $a->id,
+                'title'     => $a->getTranslations('title'),
                 'starts_at' => $a->starts_at->toDateTimeString(),
                 'ends_at'   => $a->ends_at->toDateTimeString(),
-                'status'   => $this->status($a),
+                'status'    => $a->status(),
             ]);
 
         return response()->json($announcements);
@@ -92,14 +92,5 @@ class AnnouncementController extends Controller
             'starts_at' => $a->starts_at->toDateTimeString(),
             'ends_at'   => $a->ends_at->toDateTimeString(),
         ];
-    }
-
-    private function status(Announcement $a): string
-    {
-        if (!$a->hasAllTranslations()) return 'missing_translations';
-        $now = now();
-        if ($now->lt($a->starts_at)) return 'upcoming';
-        if ($now->gt($a->ends_at))   return 'ended';
-        return 'active';
     }
 }

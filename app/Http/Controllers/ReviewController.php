@@ -66,26 +66,13 @@ class ReviewController extends Controller
 
         $product = $review->product->load(['genres.categories']);
 
-        $categories = collect();
-        foreach ($product->genres as $genre) {
-            foreach ($genre->categories as $category) {
-                if (!$categories->has($category->id)) {
-                    $categories->put($category->id, [
-                        'id'          => $category->id,
-                        'name'        => $category->getTranslations('name'),
-                        'description' => $category->getTranslations('description'),
-                    ]);
-                }
-            }
-        }
-
         return response()->json([
             'id'          => $product->id,
             'title'       => $product->title,
             'cover_image' => $product->cover_image,
             'type'        => $product->type,
             'slug'        => $product->slug,
-            'categories'  => $categories->values(),
+            'categories'  => $product->uniqueCategories(),
             'body'        => $review->body,
             'scores'      => $review->scores->pluck('score', 'category_id'),
         ]);

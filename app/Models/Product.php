@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 
 class Product extends Model
@@ -30,6 +31,23 @@ class Product extends Model
         }
 
         return $value;
+    }
+
+    public function uniqueCategories(): Collection
+    {
+        $categories = collect();
+        foreach ($this->genres as $genre) {
+            foreach ($genre->categories as $category) {
+                if (!$categories->has($category->id)) {
+                    $categories->put($category->id, [
+                        'id'          => $category->id,
+                        'name'        => $category->getTranslations('name'),
+                        'description' => $category->getTranslations('description'),
+                    ]);
+                }
+            }
+        }
+        return $categories->values();
     }
 
     public function genres(): BelongsToMany

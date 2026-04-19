@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\BadgeService;
@@ -10,12 +11,12 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
+    use ParsesIndexRequest;
+
     public function index(Request $request): JsonResponse
     {
-        $allowed = ['id', 'name', 'email', 'created_at'];
-        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
-        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = min((int) $request->get('per_page', 25), 100);
+        ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
+            $this->paginationParams($request, ['id', 'name', 'email', 'created_at']);
 
         $users = User::select(['id', 'name', 'email', 'role', 'avatar', 'badges', 'banned_at', 'ban_reason', 'created_at'])
             ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))

@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublishStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Translatable\HasTranslations;
 
 class Survey extends Model
 {
-    use HasTranslations;
+    use HasTranslations, HasPublishStatus;
 
     public array $translatable = ['title', 'question'];
 

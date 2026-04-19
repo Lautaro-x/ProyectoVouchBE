@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\GameDetail;
 use App\Models\Product;
@@ -12,12 +13,12 @@ use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
+    use ParsesIndexRequest;
+
     public function index(Request $request): JsonResponse
     {
-        $allowed = ['id', 'title', 'type'];
-        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'title';
-        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = min((int) $request->get('per_page', 25), 100);
+        ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
+            $this->paginationParams($request, ['id', 'title', 'type'], 'title');
 
         $products = Product::with(['genres', 'gameDetails', 'platforms', 'score'])
             ->when($request->search, fn($q) => $q->where('title', 'like', "%{$request->search}%"))

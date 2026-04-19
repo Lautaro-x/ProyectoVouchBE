@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\JsonResponse;
@@ -10,25 +11,17 @@ use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
+    use ParsesIndexRequest;
+
     public function index(Request $request): JsonResponse
     {
-        $allowed = ['id', 'name', 'slug'];
-        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
-        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = min((int) $request->get('per_page', 25), 100);
+        ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
+            $this->paginationParams($request, ['id', 'name', 'slug']);
 
         $query = Category::query();
 
         if ($request->search) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                foreach (['en', 'es', 'fr', 'pt', 'it'] as $locale) {
-                    $q->orWhereRaw(
-                        "JSON_UNQUOTE(JSON_EXTRACT(name, '$.$locale')) LIKE ?",
-                        ["%{$search}%"]
-                    );
-                }
-            });
+            $query->searchTranslatable($request->search);
         }
 
         if ($sortBy === 'name') {

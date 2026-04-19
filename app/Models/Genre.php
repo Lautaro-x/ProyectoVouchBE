@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasTranslatableSearch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\Translatable\HasTranslations;
 
 class Genre extends Model
 {
-    use HasTranslations;
+    use HasTranslations, HasTranslatableSearch;
 
     protected $table = 'Genres';
 

@@ -12,7 +12,7 @@ class ProductReviewController extends Controller
         $reviews = $product->reviews()
             ->with('user:id,name,avatar,badges')
             ->whereNull('banned_at')
-            ->whereHas('user', fn($q) => $q->where('reviews_public', true)->whereNull('banned_at'))
+            ->whereHas('user', fn($q) => $q->whereNull('banned_at'))
             ->orderByDesc('created_at')
             ->paginate(6);
 

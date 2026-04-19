@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublishStatus;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Translatable\HasTranslations;
 
 class Announcement extends Model
 {
-    use HasTranslations;
+    use HasTranslations, HasPublishStatus;
 
     public array $translatable = ['title', 'body'];
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\Review;
 use App\Services\ScoringService;
@@ -10,14 +11,14 @@ use Illuminate\Http\Request;
 
 class ReviewController extends Controller
 {
+    use ParsesIndexRequest;
+
     public function __construct(private ScoringService $scoring) {}
 
     public function index(Request $request): JsonResponse
     {
-        $allowed = ['id', 'weighted_score', 'created_at'];
-        $sortBy  = in_array($request->sort_by, $allowed) ? $request->sort_by : 'id';
-        $sortDir = $request->sort_dir === 'desc' ? 'desc' : 'asc';
-        $perPage = min((int) $request->get('per_page', 25), 100);
+        ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
+            $this->paginationParams($request, ['id', 'weighted_score', 'created_at']);
 
         $reviews = Review::with(['user', 'product'])
             ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))
