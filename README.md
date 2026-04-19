@@ -584,8 +584,8 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 
 ### Fase 5 — Pre-producción
 - [ ] Página 404 personalizada en el frontend
-- [ ] Rate limiting en endpoints sensibles más allá del login
-- [ ] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
+- [x] Rate limiting en endpoints sensibles más allá del login
+- [x] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
 - [ ] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
 - [ ] Opción "solo verificados" en encuestas y avisos (filtrar audiencia por badge `verificado`)
 - [ ] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
@@ -845,3 +845,79 @@ Función `localizedValue(record, lang)` con fallback `record[lang] || record['es
 
 **Eliminado: `src/app/features/admin/pipes/localized-name.pipe.ts`**
 Duplicado exacto de `src/app/shared/pipes/localized-name.pipe.ts`. Los 3 componentes admin que lo importaban (géneros, categorías, productos) actualizaron su import a la ruta shared.
+
+---
+
+## Tests PHPUnit (2026-04-19)
+
+Suite de tests automatizados para el motor de puntuación y la API de reseñas. Usan SQLite `:memory:` (configurado en `phpunit.xml`) con `RefreshDatabase` para aislamiento total entre tests.
+
+### Factories
+
+| Factory | Descripción |
+|---|---|
+| `ProductFactory` | Crea productos tipo `game` con título y slug |
+| `GenreFactory` | Crea géneros con `name` JSON multilingüe (5 idiomas) |
+| `CategoryFactory` | Crea categorías con `name` y `description` JSON multilingüe |
+
+### `tests/Unit/ScoringServiceTest.php`
+
+Tests puros (sin base de datos) para `ScoringService::calculateLetterGrade()`.
+
+| Test | Qué verifica |
+|---|---|
+| `test_letter_grade_boundaries` | Todas las fronteras de nota: 0.0→F, 5.0→E, 6.0→D, 7.0→C, 8.0→B, 9.0→A, 10.0→S y todos los `+` |
+| `test_99_is_aplus_not_s` | 9.9 devuelve A+ (truncado, no redondea a S) |
+| `test_89_is_bplus_not_a` | 8.9 devuelve B+ (truncado, no redondea a A) |
+| `test_perfect_score_is_s` | 10.0 devuelve S |
+
+### `tests/Feature/ScoringServiceTest.php`
+
+Tests de integración con BD en memoria para `ScoringService::calculateWeightedScore()` y métodos relacionados.
+
+| Test | Qué verifica |
+|---|---|
+| `test_basic_weighted_average` | Promedio ponderado correcto con C1(0.6)=8, C2(0.4)=6 → 7.2 |
+| `test_variable_weights_change_the_result` | Mismos scores, pesos distintos (0.9/0.1) → 7.8 ≠ 7.2 |
+| `test_max_weight_algorithm_across_multiple_genres` | MAX weight con 2 géneros solapados → cálculo correcto con pesos máximos |
+| `test_max_weight_takes_highest_not_first` | Categoría en 2 géneros (0.3 y 0.8) → usa 0.8, no el primero encontrado |
+| `test_missing_score_for_category_defaults_to_zero` | Categoría sin score en la reseña → se trata como 0 |
+| `test_top_15_categories_truncation` | 16 categorías → la 16ª (menor peso) queda fuera del cálculo |
+| `test_float_precision_exact_score_does_not_degrade` | score=9, weight=1.0 → resultado exacto 9.0, no 8.9999… |
+| `test_no_categories_returns_zero` | Producto sin géneros → 0.0 |
+| `test_recalculate_product_scores_separates_user_and_critic` | `recalculateProductScores()` agrupa por rol correctamente |
+| `test_recalculate_excludes_banned_reviews` | Reseñas baneadas no se incluyen en el promedio del producto |
+| `test_trust_score_from_ids_returns_null_when_no_followed_ids` | Sin IDs → null |
+| `test_trust_score_from_ids_returns_null_when_no_matching_reviews` | IDs sin reseñas del producto → null |
+| `test_trust_score_averages_followed_users_reviews` | Promedio correcto entre reseñas de usuarios seguidos |
+| `test_trust_score_excludes_banned_reviews` | Reseñas baneadas de usuarios seguidos no cuentan |
+
+### `tests/Feature/ReviewApiTest.php`
+
+Tests de integración HTTP para los endpoints de reseñas.
+
+| Test | Endpoint | Qué verifica |
+|---|---|---|
+| `test_unauthenticated_user_cannot_create_review` | `POST /api/reviews` | 401 sin token |
+| `test_banned_user_cannot_create_review` | `POST /api/reviews` | 403 si usuario baneado |
+| `test_authenticated_user_can_create_review` | `POST /api/reviews` | 201 + fila en BD |
+| `test_cannot_review_same_product_twice` | `POST /api/reviews` | 422 si ya existe review del mismo producto |
+| `test_review_creates_correct_weighted_score` | `POST /api/reviews` | `weighted_score`=70 y `letter_grade`=C en BD |
+| `test_edit_form_requires_authentication` | `GET /api/reviews/{id}/edit-form` | 401 sin token |
+| `test_edit_form_forbidden_for_other_user` | `GET /api/reviews/{id}/edit-form` | 403 si no es el autor |
+| `test_edit_form_accessible_by_owner` | `GET /api/reviews/{id}/edit-form` | 200 con datos del producto |
+| `test_update_review_forbidden_for_other_user` | `PUT /api/reviews/{id}` | 403 si no es el autor |
+| `test_owner_can_update_review` | `PUT /api/reviews/{id}` | 200 + `weighted_score`=90 y `letter_grade`=A en BD |
+
+### Ejecutar
+
+```bash
+php artisan test
+```
+
+O por suite:
+
+```bash
+php artisan test --testsuite=Unit
+php artisan test --testsuite=Feature
+```

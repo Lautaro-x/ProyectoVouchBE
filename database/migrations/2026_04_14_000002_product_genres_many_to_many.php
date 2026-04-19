@@ -18,13 +18,15 @@ return new class extends Migration
 
         DB::statement('
             INSERT INTO Product_x_Genre (product_id, genre_id, created_at, updated_at)
-            SELECT id, genre_id, NOW(), NOW()
+            SELECT id, genre_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             FROM Products
             WHERE genre_id IS NOT NULL
         ');
 
         Schema::table('Products', function (Blueprint $table) {
-            $table->dropForeign(['genre_id']);
+            if (DB::connection()->getDriverName() !== 'sqlite') {
+                $table->dropForeign(['genre_id']);
+            }
             $table->dropColumn('genre_id');
         });
     }

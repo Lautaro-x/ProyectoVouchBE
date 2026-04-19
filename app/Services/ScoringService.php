@@ -51,7 +51,7 @@ class ScoringService
         if ($score >= 10.0) return 'S';
 
         $integer    = (int) floor($score);
-        $hasDecimal = ($score - $integer) >= 0.1;
+        $hasDecimal = $score > $integer;
 
         return match(true) {
             $integer >= 9 => $hasDecimal ? 'A+' : 'A',
