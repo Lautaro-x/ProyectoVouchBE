@@ -25,6 +25,7 @@ class User extends Authenticatable
         'banned_at',
         'ban_reason',
         'show_email',
+        'consent_follower_score',
         'social_links',
         'card_big_bg',
         'card_mid_bg',
@@ -42,8 +43,9 @@ class User extends Authenticatable
         'password'          => 'hashed',
         'badges'            => 'array',
         'banned_at'         => 'datetime',
-        'show_email'        => 'boolean',
-        'social_links'      => 'array',
+        'show_email'             => 'boolean',
+        'consent_follower_score' => 'boolean',
+        'social_links'           => 'array',
     ];
 
     public function isBanned(): bool

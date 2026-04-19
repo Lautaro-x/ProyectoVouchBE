@@ -101,8 +101,9 @@ class ProductController extends Controller
         $globalScore = $product->score?->global_score;
         $proScore    = $product->score?->pro_score;
 
-        $userReview  = null;
-        $trustScore  = null;
+        $userReview    = null;
+        $trustScore    = null;
+        $followerScore = null;
         if ($user = $request->user('sanctum')) {
             $review = $product->reviews()
                 ->where('user_id', $user->id)
@@ -116,7 +117,8 @@ class ProductController extends Controller
                 ];
             }
 
-            $trustScore = $this->scoring->calculateTrustScore($product, $user);
+            $trustScore    = $this->scoring->calculateTrustScore($product, $user);
+            $followerScore = $this->scoring->followerScore($product, $user);
         }
 
         return response()->json([
@@ -147,8 +149,10 @@ class ProductController extends Controller
                 'global_grade' => $globalScore !== null ? $this->scoring->calculateLetterGrade($globalScore) : null,
                 'pro_score'    => $proScore,
                 'pro_grade'    => $proScore !== null ? $this->scoring->calculateLetterGrade($proScore) : null,
-                'trust_score'  => $trustScore,
-                'trust_grade'  => $trustScore !== null ? $this->scoring->calculateLetterGrade($trustScore) : null,
+                'trust_score'     => $trustScore,
+                'trust_grade'     => $trustScore !== null ? $this->scoring->calculateLetterGrade($trustScore) : null,
+                'follower_score'  => $followerScore,
+                'follower_grade'  => $followerScore !== null ? $this->scoring->calculateLetterGrade($followerScore) : null,
             ],
             'user_review' => $userReview,
         ]);

@@ -93,6 +93,17 @@ class ScoringService
         );
     }
 
+    public function followerScore(Product $product, User $user): ?float
+    {
+        if (!in_array('verificado', $user->badges ?? [])) return null;
+        if (!$user->consent_follower_score) return null;
+
+        return $this->trustScoreFromIds(
+            $product,
+            $user->followers()->pluck('follower_id')->toArray()
+        );
+    }
+
     public function trustScoreFromIds(Product $product, array $followedIds): ?float
     {
         if (empty($followedIds)) {

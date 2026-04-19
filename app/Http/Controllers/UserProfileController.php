@@ -17,8 +17,7 @@ class UserProfileController extends Controller
             'email'          => $user->email,
             'avatar'         => $user->avatar,
             'role'           => $user->role,
-            'badges'         => $user->badges ?? [],
-            'show_email'   => (bool) $user->show_email,
+            'badges'       => $user->badges ?? [],
             'social_links' => $user->social_links ?? [],
         ]);
     }
@@ -33,7 +32,6 @@ class UserProfileController extends Controller
         $request->validate([
             'name'                   => 'sometimes|string|max:25',
             'avatar'                 => 'sometimes|nullable|url|max:500',
-            'show_email'             => 'sometimes|boolean',
             'social_links'           => 'sometimes|nullable|array',
             'social_links.*.url'     => 'nullable|url|max:500',
             'social_links.*.shared'  => 'boolean',
@@ -43,7 +41,7 @@ class UserProfileController extends Controller
         ]);
 
         $request->user()->update($request->only([
-            'name', 'avatar', 'show_email', 'social_links',
+            'name', 'avatar', 'social_links',
             'card_big_bg', 'card_mid_bg', 'card_mini_bg',
         ]));
 

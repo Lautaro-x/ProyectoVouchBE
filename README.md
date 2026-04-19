@@ -284,6 +284,8 @@ Solo actualiza plataformas ya vinculadas al producto (`updateExistingPivot`). No
 Users
   id, name, email, password (nullable), google_id (hidden)
   avatar, role (user|critic|admin), badges (JSON)
+  show_email (boolean, default false)
+  consent_follower_score (boolean, default false)
   banned_at (timestamp nullable), ban_reason (string nullable)
   timestamps
 
@@ -586,15 +588,16 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [ ] Página 404 personalizada en el frontend
 - [x] Rate limiting en endpoints sensibles más allá del login
 - [x] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
-- [ ] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
+- [x] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
 - [ ] Opción "solo verificados" en encuestas y avisos (filtrar audiencia por badge `verificado`)
 - [ ] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
 - [ ] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
-- [ ] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos
+- [x] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos (requiere badge `verificado` + consentimiento explícito)
 - [ ] Creación de estilos propios — identidad visual de la plataforma (tipografía, paleta, personalidad)
 - [ ] Investigar AdSense / Carbon Ads para monetización
 
 ### Fase 6 — Post-producción
+- [ ] Verificar SSR en producción: view-source de `/games`, `/product/:type/:slug`, `/u/:id` y cards debe mostrar HTML pre-renderizado con contenido real (no `<app-root></app-root>` vacío). Comprobar OG tags con Facebook Debugger o Twitter Card Validator.
 - [ ] Laravel Queues para recálculo asíncrono de puntuaciones
 - [ ] Widget de crítico / infografía embebible — componente que el crítico pueda embeber en su blog o imagen dinámica generada con Laravel + Spatie Browsershot resumiendo su nota en un gráfico para redes sociales
 - [ ] Sistema de widget para directos — indica la última nota puesta y la nota del juego en el que está emitiendo en vivo
@@ -920,4 +923,60 @@ O por suite:
 ```bash
 php artisan test --testsuite=Unit
 php artisan test --testsuite=Feature
+```
+
+---
+
+## Consentimientos y Nota de seguidores (2026-04-19)
+
+### Consentimientos (`UserConsentController`)
+
+Sección dedicada en `/user/consents` donde el usuario gestiona qué datos suyos son visibles para otros. Separado de `UserProfileController` para mantener concerns distintos.
+
+**Endpoints:**
+```
+GET    /api/user/consents   (auth + not.banned) → { show_email, consent_follower_score, is_verified }
+PATCH  /api/user/consents   (auth + not.banned) → actualiza los consentimientos
+```
+
+`is_verified` se devuelve directamente desde el endpoint de consentimientos (evita una llamada extra desde el frontend).
+
+**Campos en `Users` (migración `2026_04_19_000003`):**
+- `show_email` (boolean, default false) — movido de `UserProfileController` a este módulo
+- `consent_follower_score` (boolean, default false) — nuevo, controla la Nota de seguidores
+
+**Consentimientos actuales:**
+
+| Clave | Descripción | Restricción |
+|---|---|---|
+| `show_email` | Muestra el email en el perfil público | Ninguna |
+| `consent_follower_score` | Activa la Nota de seguidores | Solo disponible con badge `verificado` |
+
+### Nota de seguidores (`ScoringService::followerScore`)
+
+Nuevo score personal que muestra en el detalle de un producto la nota media de los usuarios que siguen al usuario autenticado. Es el inverso del Trust Score (seguidos → seguidores).
+
+**Condiciones para aparecer:**
+1. Usuario autenticado con badge `verificado`
+2. `consent_follower_score = true`
+3. Al menos un seguidor ha reseñado el producto
+
+**Implementación:** `followerScore(Product $product, User $user): ?float` reutiliza `trustScoreFromIds()` pasando `$user->followers()->pluck('follower_id')->toArray()` en lugar de los IDs seguidos. Sin duplicación de lógica de promedio ponderado.
+
+**Respuesta del endpoint de producto** (cuando aplica):
+```json
+{
+  "scores": {
+    "follower_score": 8.4,
+    "follower_grade": "B+",
+    ...
+  }
+}
+```
+
+**Frontend:** Bloque `score-block--follower` en el aside del detalle de producto, visible solo si el usuario está autenticado y `follower_score !== null`.
+
+**Migración necesaria:**
+```bash
+php artisan migrate
 ```

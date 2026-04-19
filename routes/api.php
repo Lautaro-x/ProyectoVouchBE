@@ -8,6 +8,7 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\FollowController;
 use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\PublicCardController;
+use App\Http\Controllers\UserConsentController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\BadgeController;
 use App\Http\Controllers\AnnouncementController;
@@ -31,6 +32,8 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
     Route::get('/user/profile', [UserProfileController::class, 'show']);
     Route::put('/user/profile', [UserProfileController::class, 'update']);
+    Route::get('/user/consents', [UserConsentController::class, 'show']);
+    Route::patch('/user/consents', [UserConsentController::class, 'update']);
     Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
     Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
     Route::get('/user/badges', [BadgeController::class, 'progress']);
