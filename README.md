@@ -929,6 +929,21 @@ php artisan test --testsuite=Feature
 
 ## Consentimientos y Nota de seguidores (2026-04-19)
 
+### Lista de seguidores (`UserFollowerController`)
+
+**Endpoint:**
+```
+GET  /api/user/followers   (auth + not.banned) → { total, followers[] }
+```
+
+Devuelve el total real de seguidores y los primeros 100 ordenados por fecha de suscripción (`Follows.created_at ASC`). Cada entrada incluye `id`, `name` y `verified` (boolean derivado del badge `verificado`).
+
+El `total` refleja el conteo completo aunque el array esté limitado a 100. Si `total > 100` el frontend muestra una nota informativa.
+
+**Frontend (`/user/followers`):** Grid de 4 columnas (PC) / 3 (tablet) / 1 (móvil). Cada nombre es un enlace a `/u/:id`. Verificados muestran el badge `✓`.
+
+---
+
 ### Consentimientos (`UserConsentController`)
 
 Sección dedicada en `/user/consents` donde el usuario gestiona qué datos suyos son visibles para otros. Separado de `UserProfileController` para mantener concerns distintos.
