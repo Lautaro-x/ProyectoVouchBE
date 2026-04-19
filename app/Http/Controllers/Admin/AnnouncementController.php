@@ -19,6 +19,7 @@ class AnnouncementController extends Controller
                 'starts_at' => $a->starts_at->toDateTimeString(),
                 'ends_at'   => $a->ends_at->toDateTimeString(),
                 'status'    => $a->status(),
+                'audience'  => $a->audience,
             ]);
 
         return response()->json($announcements);
@@ -41,6 +42,7 @@ class AnnouncementController extends Controller
             'body.it'     => 'required|string',
             'starts_at'   => 'required|date',
             'ends_at'     => 'required|date|after:starts_at',
+            'audience'    => 'required|in:all,verified,press',
         ]);
 
         $announcement = Announcement::create($data);
@@ -70,6 +72,7 @@ class AnnouncementController extends Controller
             'body.it'     => 'required|string',
             'starts_at'   => 'required|date',
             'ends_at'     => 'required|date|after:starts_at',
+            'audience'    => 'required|in:all,verified,press',
         ]);
 
         $announcement->update($data);
@@ -91,6 +94,7 @@ class AnnouncementController extends Controller
             'body'      => $a->getTranslations('body'),
             'starts_at' => $a->starts_at->toDateTimeString(),
             'ends_at'   => $a->ends_at->toDateTimeString(),
+            'audience'  => $a->audience,
         ];
     }
 }

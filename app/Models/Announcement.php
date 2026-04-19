@@ -12,7 +12,7 @@ class Announcement extends Model
 
     public array $translatable = ['title', 'body'];
 
-    protected $fillable = ['title', 'body', 'starts_at', 'ends_at'];
+    protected $fillable = ['title', 'body', 'starts_at', 'ends_at', 'audience'];
 
     protected $casts = [
         'starts_at' => 'datetime',

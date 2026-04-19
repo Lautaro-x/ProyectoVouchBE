@@ -13,7 +13,7 @@ class Survey extends Model
 
     public array $translatable = ['title', 'question'];
 
-    protected $fillable = ['title', 'question', 'starts_at', 'ends_at'];
+    protected $fillable = ['title', 'question', 'starts_at', 'ends_at', 'audience'];
 
     protected $casts = [
         'starts_at' => 'datetime',

@@ -585,11 +585,11 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [x] Job diario de snapshot histórico de ProductScores (`scores:snapshot`)
 
 ### Fase 5 — Pre-producción
-- [ ] Página 404 personalizada en el frontend
+- [x] Página 404 personalizada en el frontend
 - [x] Rate limiting en endpoints sensibles más allá del login
 - [x] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
 - [x] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
-- [ ] Opción "solo verificados" en encuestas y avisos (filtrar audiencia por badge `verificado`)
+- [x] Opción "solo verificados" y "solo prensa" en encuestas y avisos (campo `audience`: `all | verified | press`)
 - [ ] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
 - [ ] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
 - [x] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos (requiere badge `verificado` + consentimiento explícito)
@@ -923,6 +923,27 @@ O por suite:
 ```bash
 php artisan test --testsuite=Unit
 php artisan test --testsuite=Feature
+```
+
+---
+
+## Audiencia en encuestas y avisos (2026-04-19)
+
+Campo `audience` (`all | verified | press`) añadido a las tablas `surveys` y `announcements`.
+
+| Valor | Quién lo ve |
+|---|---|
+| `all` | Todos los usuarios autenticados |
+| `verified` | Solo usuarios con badge `verificado` |
+| `press` | Solo usuarios con role `critic` o `admin` |
+
+El filtro se aplica en `SurveyController::active()` y `AnnouncementController::active()` usando el trait `FiltersAudience`. Los endpoints de admin incluyen `audience` en store, update y en las respuestas de index/show.
+
+**Frontend:** El panel admin muestra una columna "Audiencia" con una pill de color y un selector en el formulario de creación/edición. Los modales de encuesta y aviso visibles por el usuario muestran un badge de audiencia (`"Solo para críticos verificados"` / `"Solo para la prensa"`) cuando `audience !== 'all'`.
+
+**Migración necesaria:**
+```bash
+php artisan migrate
 ```
 
 ---

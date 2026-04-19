@@ -22,6 +22,7 @@ class SurveyController extends Controller
                 'ends_at'         => $s->ends_at->toDateTimeString(),
                 'responses_count' => $s->responses_count,
                 'status'          => $s->status(),
+                'audience'        => $s->audience,
             ]);
 
         return response()->json($surveys);
@@ -44,6 +45,7 @@ class SurveyController extends Controller
             'question.it'  => 'required|string',
             'starts_at'    => 'required|date',
             'ends_at'      => 'required|date|after:starts_at',
+            'audience'     => 'required|in:all,verified,press',
             'options'      => 'required|array|min:2',
             'options.*.es' => 'required|string|max:255',
             'options.*.en' => 'required|string|max:255',
@@ -57,6 +59,7 @@ class SurveyController extends Controller
             'question'  => $data['question'],
             'starts_at' => $data['starts_at'],
             'ends_at'   => $data['ends_at'],
+            'audience'  => $data['audience'],
         ]);
 
         foreach ($data['options'] as $i => $textByLang) {
@@ -89,6 +92,7 @@ class SurveyController extends Controller
             'question.it'  => 'required|string',
             'starts_at'    => 'required|date',
             'ends_at'      => 'required|date|after:starts_at',
+            'audience'     => 'required|in:all,verified,press',
             'options'      => 'required|array|min:2',
             'options.*.es' => 'required|string|max:255',
             'options.*.en' => 'required|string|max:255',
@@ -102,6 +106,7 @@ class SurveyController extends Controller
             'question'  => $data['question'],
             'starts_at' => $data['starts_at'],
             'ends_at'   => $data['ends_at'],
+            'audience'  => $data['audience'],
         ]);
 
         $survey->options()->delete();
@@ -142,6 +147,7 @@ class SurveyController extends Controller
             'question'  => $survey->getTranslations('question'),
             'starts_at' => $survey->starts_at->toDateTimeString(),
             'ends_at'   => $survey->ends_at->toDateTimeString(),
+            'audience'  => $survey->audience,
             'options'   => $survey->options->map(fn($o) => [
                 'id'    => $o->id,
                 'text'  => $o->getTranslations('text'),

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAudience;
 use App\Models\Survey;
 use App\Models\SurveyResponse;
 use Illuminate\Http\JsonResponse;
@@ -9,6 +10,8 @@ use Illuminate\Http\Request;
 
 class SurveyController extends Controller
 {
+    use FiltersAudience;
+
     public function active(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -19,12 +22,13 @@ class SurveyController extends Controller
             ->whereDoesntHave('responses', fn($q) => $q->where('user_id', $user->id))
             ->with('options')
             ->get()
-            ->filter(fn($s) => $s->hasAllTranslations())
+            ->filter(fn($s) => $s->hasAllTranslations() && $this->userMatchesAudience($user, $s->audience))
             ->values()
             ->map(fn($s) => [
                 'id'       => $s->id,
                 'title'    => $s->getTranslations('title'),
                 'question' => $s->getTranslations('question'),
+                'audience' => $s->audience,
                 'options'  => $s->options->map(fn($o) => [
                     'id'   => $o->id,
                     'text' => $o->getTranslations('text'),
