@@ -25,7 +25,15 @@ class UserConsentController extends Controller
             'consent_follower_score' => 'sometimes|boolean',
         ]);
 
-        $request->user()->update($request->only(['show_email', 'consent_follower_score']));
+        $user = $request->user();
+        $data = $request->only(['show_email', 'consent_follower_score']);
+
+        $isVerified = in_array('verificado', $user->badges ?? []);
+        if (!$isVerified) {
+            $data['consent_follower_score'] = false;
+        }
+
+        $user->update($data);
 
         return response()->json(['message' => 'ok']);
     }

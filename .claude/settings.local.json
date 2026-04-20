@@ -5,7 +5,9 @@
       "Bash(python3)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.keys\\(\\)]\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('survey', {}\\), indent=2, ensure_ascii=False\\)\\)\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('admin', {}\\).get\\('surveys', {}\\), indent=2, ensure_ascii=False\\)\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('admin', {}\\).get\\('surveys', {}\\), indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(grep -n \"logout\\\\|audience_press.*\\\\\"$\" /d/laragon/www/ProyectoVouchFE/public/i18n/pt.json)",
+      "Bash(grep -n \"logout\\\\|audience_press.*\\\\\"$\" /d/laragon/www/ProyectoVouchFE/public/i18n/it.json)"
     ]
   }
 }

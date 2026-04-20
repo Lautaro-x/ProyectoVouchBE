@@ -40,21 +40,21 @@ class IgdbImportTopCommand extends Command
             }
 
             $imported = 0;
-            $skipped  = 0;
+            $updated  = 0;
 
             foreach ($games as $game) {
                 $product = $this->importer->importGame($game);
 
-                if ($product) {
+                if ($product->wasRecentlyCreated) {
                     $this->line("  ✓ {$product->title}");
                     $imported++;
                 } else {
-                    $this->line("  - {$game['name']} (ya existe)");
-                    $skipped++;
+                    $this->line("  ↻ {$product->title} (actualizado)");
+                    $updated++;
                 }
             }
 
-            $this->info("  Importados: {$imported} | Omitidos: {$skipped}");
+            $this->info("  Nuevos: {$imported} | Actualizados: {$updated}");
         }
 
         $this->info('Importación completada.');

@@ -13,7 +13,7 @@ class ProductController extends Controller
 
     public function games(Request $request): JsonResponse
     {
-        $paginator = Product::with('score')
+        $paginator = Product::with(['score', 'gameDetails'])
             ->addSelect([
                 'Products.*',
                 'latest_release' => \DB::table('Product_x_Platform')
@@ -51,7 +51,7 @@ class ProductController extends Controller
 
     public function relevant(Request $request): JsonResponse
     {
-        $products = Product::with(['score', 'platforms'])
+        $products = Product::with(['score', 'gameDetails', 'platforms'])
             ->whereHas('score', fn($q) =>
                 $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 8.0')
             )
@@ -133,9 +133,32 @@ class ProductController extends Controller
                 'name' => $g->getTranslations('name'),
             ]),
             'game_details' => $product->gameDetails ? [
-                'developer' => $product->gameDetails->developer,
-                'publisher' => $product->gameDetails->publisher,
-                'igdb_id'   => $product->gameDetails->igdb_id,
+                'igdb_id'                 => $product->gameDetails->igdb_id,
+                'developer'               => $product->gameDetails->developer,
+                'publisher'               => $product->gameDetails->publisher,
+                'storyline'               => $product->gameDetails->storyline,
+                'igdb_rating'             => $product->gameDetails->igdb_rating,
+                'igdb_grade'              => $product->gameDetails->igdb_rating !== null
+                    ? $this->scoring->calculateLetterGrade($product->gameDetails->igdb_rating)
+                    : null,
+                'igdb_rating_count'       => $product->gameDetails->igdb_rating_count,
+                'aggregated_rating'       => $product->gameDetails->aggregated_rating,
+                'aggregated_rating_count' => $product->gameDetails->aggregated_rating_count,
+                'hypes'                   => $product->gameDetails->hypes,
+                'follows'                 => $product->gameDetails->follows,
+                'status'                  => $product->gameDetails->status,
+                'category'                => $product->gameDetails->category,
+                'franchise'               => $product->gameDetails->franchise,
+                'trailer_youtube_id'      => $product->gameDetails->trailer_youtube_id,
+                'pegi_rating'             => $product->gameDetails->pegi_rating,
+                'esrb_rating'             => $product->gameDetails->esrb_rating,
+                'gog_url'                 => $product->gameDetails->gog_url,
+                'epic_url'                => $product->gameDetails->epic_url,
+                'official_url'            => $product->gameDetails->official_url,
+                'game_modes'              => $product->gameDetails->game_modes,
+                'themes'                  => $product->gameDetails->themes,
+                'player_perspectives'     => $product->gameDetails->player_perspectives,
+                'screenshots'             => $product->gameDetails->screenshots,
             ] : null,
             'platforms' => $product->platforms->map(fn($p) => [
                 'id'           => $p->id,
@@ -160,19 +183,37 @@ class ProductController extends Controller
 
     private function formatCard(Product $product): array
     {
-        $global = $product->score?->global_score ?? 0;
-        $pro    = $product->score?->pro_score    ?? 0;
-        $best   = max($global, $pro);
+        $global = $product->score?->global_score;
+        $pro    = $product->score?->pro_score;
 
-        return [
-            'id'           => $product->id,
-            'type'         => $product->type,
-            'slug'         => $product->slug,
-            'title'        => $product->title,
-            'cover_image'  => $product->cover_image,
-            'score'        => $best,
-            'letter_grade' => $this->scoring->calculateLetterGrade($best),
-            'score_type'   => $global >= $pro ? 'global' : 'pro',
+        $base = [
+            'id'          => $product->id,
+            'type'        => $product->type,
+            'slug'        => $product->slug,
+            'title'       => $product->title,
+            'cover_image' => $product->cover_image,
         ];
+
+        if ($global !== null || $pro !== null) {
+            $best = max($global ?? 0, $pro ?? 0);
+            return array_merge($base, [
+                'letter_grade' => $this->scoring->calculateLetterGrade($best),
+                'score_type'   => ($global ?? 0) >= ($pro ?? 0) ? 'global' : 'pro',
+            ]);
+        }
+
+        $igdbRating = $product->gameDetails?->igdb_rating;
+
+        if ($igdbRating !== null) {
+            return array_merge($base, [
+                'letter_grade' => $this->scoring->calculateLetterGrade($igdbRating),
+                'score_type'   => 'igdb',
+            ]);
+        }
+
+        return array_merge($base, [
+            'letter_grade' => null,
+            'score_type'   => 'none',
+        ]);
     }
 }

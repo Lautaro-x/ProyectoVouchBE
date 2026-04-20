@@ -10,6 +10,7 @@ use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\PublicCardController;
 use App\Http\Controllers\UserConsentController;
 use App\Http\Controllers\UserFollowerController;
+use App\Http\Controllers\VerificationRequestController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\BadgeController;
 use App\Http\Controllers\AnnouncementController;
@@ -38,6 +39,8 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
     Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
     Route::get('/user/followers', [UserFollowerController::class, 'index']);
+    Route::get('/user/verify-request', [VerificationRequestController::class, 'show']);
+    Route::post('/user/verify-request', [VerificationRequestController::class, 'store'])->middleware('throttle:5,1');
     Route::get('/user/badges', [BadgeController::class, 'progress']);
     Route::post('/user/badges/{badge}/claim', [BadgeController::class, 'claim'])->middleware('throttle:10,1');
     Route::delete('/user/badges/{badge}', [BadgeController::class, 'remove']);
@@ -69,6 +72,10 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
         Route::apiResource('surveys', Admin\SurveyController::class);
         Route::get('surveys/{survey}/results', [Admin\SurveyController::class, 'results']);
         Route::apiResource('announcements', Admin\AnnouncementController::class);
+
+        Route::get('verify-requests', [Admin\VerificationRequestController::class, 'index']);
+        Route::post('verify-requests/{verificationRequest}/approve', [Admin\VerificationRequestController::class, 'approve']);
+        Route::post('verify-requests/{verificationRequest}/reject', [Admin\VerificationRequestController::class, 'reject']);
 
         Route::get('users', [Admin\UserController::class, 'index']);
         Route::get('users/{user}', [Admin\UserController::class, 'show']);

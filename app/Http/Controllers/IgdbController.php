@@ -32,14 +32,11 @@ class IgdbController extends Controller
         }
 
         $product = $this->importer->importGame($game);
-
-        if (!$product) {
-            return response()->json(['message' => 'Este juego ya fue importado'], 409);
-        }
+        $status  = $product->wasRecentlyCreated ? 201 : 200;
 
         return response()->json(
             $product->load('gameDetails', 'platforms', 'genres'),
-            201
+            $status
         );
     }
 }

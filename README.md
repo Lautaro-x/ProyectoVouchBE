@@ -194,15 +194,34 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 - `topByGenre(int $igdbGenreId, int $limit)` — top juegos de un género
 - `coverUrl(array $cover, string $size)` — construye URL de portada (formato `t_cover_big`)
 
-**`ProductImportService`** — método `importGame(array $igdbGame)`:
-- Crea o actualiza `Product` + `GameDetail`
-- Resuelve compañías (developer/publisher) desde el campo `involved_companies`
-- Asigna plataformas: crea `Platform` si no existe, determina tipo (console/pc/streaming) por nombre, guarda `release_year` en la pivot `Product_x_Platform`
-- **Sincroniza géneros** desde `igdbGame['genres']` cruzando `igdb_genre_id` con los géneros existentes en BD
-- **Detecta URL de Steam** automáticamente desde `external_games` (category === 1 = Steam); construye `https://store.steampowered.com/app/{uid}/` y la guarda en `purchase_url` del pivot PC
-- Genera slug único con sufijo numérico si hay colisión
+**`ProductImportService`** — método `importGame(array $igdbGame): Product` (upsert):
+- Si el `igdb_id` **ya existe**: actualiza `description`, `cover_image` en Product y todos los campos de `GameDetail`. Devuelve el producto con `wasRecentlyCreated = false`.
+- Si **no existe**: crea `Product` + `GameDetail`. Devuelve el producto con `wasRecentlyCreated = true`.
+- En ambos casos sincroniza géneros y plataformas.
+- Lógica interna dividida en `buildDetailData()`, `syncGenres()` y `syncPlatforms()` para evitar duplicación entre create y update.
+- `IgdbController` devuelve HTTP 201 (creado) o 200 (actualizado) según `wasRecentlyCreated`.
+- `igdb:import-top` muestra "✓ nuevo" o "↻ actualizado" por juego.
 
-**Queries IGDB incluyen:** `external_games.uid`, `external_games.category` para detectar la URL de Steam durante el import.
+**Datos almacenados en `GameDetail` (migración `2026_04_19_000006`):**
+
+| Campo | Fuente IGDB |
+|---|---|
+| `developer`, `publisher` | `involved_companies` |
+| `storyline` | `storyline` |
+| `igdb_rating` / `igdb_rating_count` | `rating` / `rating_count` (escalado a 0–10) |
+| `aggregated_rating` / `aggregated_rating_count` | `aggregated_rating` / `aggregated_rating_count` (escalado a 0–10) |
+| `hypes`, `follows` | `hypes`, `follows` |
+| `status`, `category` | `status`, `category` (enteros, enum IGDB) |
+| `franchise` | `franchises[0].name` |
+| `trailer_youtube_id` | `videos[0].video_id` |
+| `pegi_rating`, `esrb_rating` | `age_ratings` (category 2=PEGI, 1=ESRB) |
+| `gog_url`, `epic_url` | `external_games` (category 5=GOG, 26=Epic) |
+| `official_url` | `websites` (category 1=oficial) |
+| `steam` | `external_games` (category 1) → pivot `purchase_url` |
+| `game_modes` | `game_modes[].name` (JSON array) |
+| `themes` | `themes[].name` (JSON array, incluye "Indie") |
+| `player_perspectives` | `player_perspectives[].name` (JSON array) |
+| `screenshots` | `screenshots[].url` (hasta 10, tamaño `t_screenshot_big`) |
 
 **Endpoints admin:**
 ```
@@ -1016,3 +1035,62 @@ Nuevo score personal que muestra en el detalle de un producto la nota media de l
 ```bash
 php artisan migrate
 ```
+
+---
+
+## Sistema de solicitudes de verificación
+
+Flujo completo que permite a usuarios no verificados solicitar el badge `verificado` (creadores de contenido) o acceso de prensa (rol `critic`).
+
+### Tipos de solicitud
+
+| Tipo | Campos | Resultado al aprobar |
+|---|---|---|
+| `verified` | `social_network`, `social_username` | Badge `verificado` |
+| `press` | `press_url`, `press_contact` | Badge `verificado` + rol `critic` |
+
+### Backend
+
+**Modelo:** `VerificationRequest` — campos: `user_id`, `type` (enum), `social_network`, `social_username`, `press_url`, `press_contact`, `status` (enum: `pending`/`approved`/`rejected`), `admin_note`, `reviewed_at`. Relación `belongsTo(User)`.
+
+**Migración:** `2026_04_19_000005_create_verification_requests_table.php`
+
+**Endpoints de usuario:**
+```
+GET  /api/user/verify-request   → última solicitud del usuario o null
+POST /api/user/verify-request   → crea nueva solicitud (valida que no haya pending del mismo tipo)
+```
+
+**Endpoints de admin:**
+```
+GET  /api/admin/verify-requests?status=pending   → lista filtrada por estado
+POST /api/admin/verify-requests/{id}/approve     → aprueba (otorga badge + promueve si press)
+POST /api/admin/verify-requests/{id}/reject      → rechaza con nota opcional
+```
+
+**Lógica de aprobación (`Admin\VerificationRequestController`):**
+- Siempre otorga el badge `verificado` al array `badges` del usuario
+- Si `type = press` y `role = user`, promueve a `critic`
+- Marca `status = approved` y `reviewed_at = now()`
+
+**Prevención de duplicados:** `store()` comprueba si existe una solicitud pendiente del mismo tipo antes de crear una nueva (devuelve 422 con clave `already_pending`).
+
+### Frontend
+
+**Ruta de usuario:** `/user/verify-request` — `UserVerifyRequestComponent`
+
+**Botón de acceso:** En el aside del perfil (`/user/profile`), visible solo si `role !== admin && role !== critic && !badges.includes('verificado')`. Computed signal `canRequestVerification`.
+
+**Flujo del formulario:**
+1. Si ya hay solicitud `pending` → pantalla de espera
+2. Si `approved` → pantalla de confirmación
+3. Si `rejected` → pantalla con nota del admin + hint para reintentar
+4. Sin solicitud → formulario con selector de tipo:
+   - **Verified:** selector de red social + campo de username; explicación con links a cuentas de Vouch
+   - **Press:** URL del medio + contacto del redactor; opción alternativa por email
+
+**Admin:** `/admin/verify-requests` — `AdminVerifyRequestsComponent`
+
+Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisar" se abre un dialog con todos los detalles de la solicitud y (si está pendiente) los botones Aprobar/Rechazar con campo de nota interna opcional.
+
+**Entorno:** `environment.ts` contiene `pressEmail` y `vouchSocials` (URLs de las cuentas de Vouch en cada red) configurables sin tocar el código.

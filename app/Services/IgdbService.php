@@ -42,15 +42,32 @@ class IgdbService
         );
     }
 
-    public function find(int $igdbId): ?array
+    private function fullFields(): string
     {
-        $results = $this->query('games',
-            "fields id,name,summary,cover.url,first_release_date,
+        return "id,name,summary,storyline,cover.url,
+            first_release_date,
+            rating,rating_count,
+            aggregated_rating,aggregated_rating_count,
+            hypes,follows,status,category,
             involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
             platforms.name,platforms.abbreviation,
             release_dates.date,release_dates.platform.id,
             genres.name,
-            external_games.uid,external_games.category;
+            game_modes.name,
+            themes.name,
+            player_perspectives.name,
+            franchises.name,
+            videos.name,videos.video_id,
+            screenshots.url,
+            age_ratings.category,age_ratings.rating,
+            websites.category,websites.url,
+            external_games.uid,external_games.category";
+    }
+
+    public function find(int $igdbId): ?array
+    {
+        $results = $this->query('games',
+            "fields {$this->fullFields()};
             where id = {$igdbId};"
         );
 
@@ -60,12 +77,7 @@ class IgdbService
     public function topByGenre(int $igdbGenreId, int $limit = 10): array
     {
         return $this->query('games',
-            "fields id,name,summary,cover.url,first_release_date,
-            involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
-            platforms.name,platforms.abbreviation,
-            release_dates.date,release_dates.platform.id,
-            genres.name,
-            external_games.uid,external_games.category;
+            "fields {$this->fullFields()};
             where genres = ({$igdbGenreId})
               & aggregated_rating_count > 5
               & cover != null;
