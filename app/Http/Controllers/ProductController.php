@@ -25,6 +25,23 @@ class ProductController extends Controller
                 $request->filled('search'),
                 fn($q) => $q->where('Products.title', 'like', '%' . $request->search . '%')
             )
+            ->when(
+                $request->filled('filter_type') && $request->filled('filter_value'),
+                function ($q) use ($request) {
+                    $type  = $request->input('filter_type');
+                    $value = $request->input('filter_value');
+                    return match ($type) {
+                        'genre'              => $q->whereHas('genres', fn ($g) => $g->where('id', $value)),
+                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->where('developer', $value)),
+                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->where('publisher', $value)),
+                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->where('franchise', $value)),
+                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('themes', $value)),
+                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('game_modes', $value)),
+                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('player_perspectives', $value)),
+                        default              => $q,
+                    };
+                }
+            )
             ->orderByDesc('latest_release')
             ->paginate(12);
 
