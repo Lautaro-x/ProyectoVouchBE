@@ -1094,3 +1094,12 @@ POST /api/admin/verify-requests/{id}/reject      → rechaza con nota opcional
 Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisar" se abre un dialog con todos los detalles de la solicitud y (si está pendiente) los botones Aprobar/Rechazar con campo de nota interna opcional.
 
 **Entorno:** `environment.ts` contiene `pressEmail` y `vouchSocials` (URLs de las cuentas de Vouch en cada red) configurables sin tocar el código.
+
+---
+
+## Novedades recientes
+
+- Filtros de navegación desde detalle de producto: géneros, desarrollador, distribuidora, franquicia, temática, modo de juego y perspectiva son ahora enlaces que llevan a `/games` filtrado, con chip visible y botón para limpiar el filtro.
+- Sistema de solicitudes de verificación completo: formulario de usuario, panel de admin con aprobación/rechazo, actualización automática de badge y rol según tipo (verified / press).
+- Rótulo de última valoración fiable en game-card: si alguien a quien sigues ha valorado el juego en el último mes, aparece su nota como etiqueta inclinada flotando sobre la portada.
+

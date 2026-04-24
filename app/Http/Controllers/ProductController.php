@@ -50,14 +50,22 @@ class ProductController extends Controller
             $followedIds = $user->following()->pluck('followed_id')->toArray();
         }
 
+        $items     = collect($paginator->items());
+        $reviewMap = $this->followerReviewMap($followedIds, $items->pluck('id')->all());
+
         return response()->json([
-            'data'         => collect($paginator->items())->map(fn(Product $p) => array_merge(
+            'data'         => $items->map(fn(Product $p) => array_merge(
                 $this->formatCard($p),
-                ['trust_grade' => !empty($followedIds)
-                    ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
-                        ? $this->scoring->calculateLetterGrade($ts)
-                        : null)
-                    : null,
+                [
+                    'trust_grade' => !empty($followedIds)
+                        ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
+                            ? $this->scoring->calculateLetterGrade($ts)
+                            : null)
+                        : null,
+                    'follower_review' => ($fr = $reviewMap->get($p->id)) ? [
+                        'user_name'    => $fr->user_name,
+                        'letter_grade' => $fr->letter_grade,
+                    ] : null,
                 ]
             )),
             'current_page' => $paginator->currentPage(),
@@ -81,17 +89,43 @@ class ProductController extends Controller
             $followedIds = $user->following()->pluck('followed_id')->toArray();
         }
 
+        $reviewMap = $this->followerReviewMap($followedIds, $products->pluck('id')->all());
+
         return response()->json(
             $products->map(fn(Product $p) => array_merge(
                 $this->formatCard($p),
-                ['trust_grade' => !empty($followedIds)
-                    ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
-                        ? $this->scoring->calculateLetterGrade($ts)
-                        : null)
-                    : null,
+                [
+                    'trust_grade' => !empty($followedIds)
+                        ? (($ts = $this->scoring->trustScoreFromIds($p, $followedIds)) !== null
+                            ? $this->scoring->calculateLetterGrade($ts)
+                            : null)
+                        : null,
+                    'follower_review' => ($fr = $reviewMap->get($p->id)) ? [
+                        'user_name'    => $fr->user_name,
+                        'letter_grade' => $fr->letter_grade,
+                    ] : null,
                 ]
             ))->values()
         );
+    }
+
+    private function followerReviewMap(array $followedIds, array $productIds): \Illuminate\Support\Collection
+    {
+        if (empty($followedIds) || empty($productIds)) {
+            return collect();
+        }
+
+        return \DB::table('reviews')
+            ->join('users', 'users.id', '=', 'reviews.user_id')
+            ->whereIn('reviews.product_id', $productIds)
+            ->whereIn('reviews.user_id', $followedIds)
+            ->whereNull('reviews.banned_at')
+            ->where('reviews.created_at', '>=', now()->subMonth())
+            ->orderByDesc('reviews.created_at')
+            ->select('reviews.product_id', 'reviews.letter_grade', 'users.name as user_name')
+            ->get()
+            ->unique('product_id')
+            ->keyBy('product_id');
     }
 
     public function reviewForm(int $id): JsonResponse
