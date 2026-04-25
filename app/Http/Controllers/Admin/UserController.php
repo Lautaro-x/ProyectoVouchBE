@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Admin\Concerns\ParsesIndexRequest;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\BadgeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -64,7 +66,7 @@ class UserController extends Controller
     public function updateRole(Request $request, User $user): JsonResponse
     {
         $data = $request->validate([
-            'role' => 'required|in:user,critic,admin',
+            'role' => ['required', Rule::enum(UserRole::class)],
         ]);
 
         $user->update($data);

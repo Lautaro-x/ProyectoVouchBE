@@ -1099,6 +1099,9 @@ Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisa
 
 ## Novedades recientes
 
+- Hardening de seguridad fase 2: `HttpsUrl` rule rechaza URLs no-https en avatar/card backgrounds/social links/press_url; throttle añadido a 8 rutas sin protección (perfil, reseña, consents, admin ban/role/verify); `SecurityHeaders` middleware inyecta `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy` en todas las respuestas API.
+- Performance: `ProductController::relevant()` usa ORDER BY + LIMIT en SQL en lugar de cargar todos los productos en PHP; resultado cacheado 10 min con invalidación automática al recalcular scores. `ScoringService::recalculateProductScores` sustituye el `->with('user')->get()->filter()` por `averageByRole()` con JOIN en SQL.
+- Calidad: enums `UserRole` y `Badge` reemplazan los strings mágicos de roles y badges en toda la codebase; trait `ApiResponse` unifica el formato de todas las respuestas de error (`message` siempre, nunca `error`); `ReviewController::store/update` envueltos en `DB::transaction`.
 - Hardening de seguridad (auditoría): CORS restringido a `FRONTEND_URL`; verificación criptográfica local de JWT de Google con firma RSA-SHA256 y validación de `iss`/`aud`/`exp`/`email_verified`; fix de account takeover en login por email; `AdminMiddleware` bloquea admins baneados.
 - Filtros de navegación desde detalle de producto: géneros, desarrollador, distribuidora, franquicia, temática, modo de juego y perspectiva son ahora enlaces que llevan a `/games` filtrado, con chip visible y botón para limpiar el filtro.
 - Sistema de solicitudes de verificación completo: formulario de usuario, panel de admin con aprobación/rechazo, actualización automática de badge y rol según tipo (verified / press).

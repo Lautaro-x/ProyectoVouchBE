@@ -6,6 +6,8 @@ use App\Services\ScoringService;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -16,14 +18,14 @@ class ProductController extends Controller
         $paginator = Product::with(['score', 'gameDetails'])
             ->addSelect([
                 'Products.*',
-                'latest_release' => \DB::table('Product_x_Platform')
+                'latest_release' => DB::table('Product_x_Platform')
                     ->selectRaw('MAX(release_date)')
                     ->whereColumn('product_id', 'Products.id'),
             ])
             ->where('type', 'game')
             ->when(
                 $request->filled('search'),
-                fn($q) => $q->where('Products.title', 'like', '%' . $request->search . '%')
+                fn($q) => $q->where('Products.title', 'like', '%' . $request->input('search') . '%')
             )
             ->when(
                 $request->filled('filter_type') && $request->filled('filter_value'),
@@ -76,13 +78,21 @@ class ProductController extends Controller
 
     public function relevant(Request $request): JsonResponse
     {
-        $products = Product::with(['score', 'gameDetails', 'platforms'])
-            ->whereHas('score', fn($q) =>
-                $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 8.0')
-            )
-            ->get()
-            ->sortByDesc(fn(Product $p) => $p->platforms->max('pivot.release_date') ?? '')
-            ->take(6);
+        $products = Cache::remember('relevant_products', 600, fn () =>
+            Product::with(['score', 'gameDetails', 'platforms'])
+                ->addSelect([
+                    'Products.*',
+                    'latest_release' => DB::table('Product_x_Platform')
+                        ->selectRaw('MAX(release_date)')
+                        ->whereColumn('product_id', 'Products.id'),
+                ])
+                ->whereHas('score', fn($q) =>
+                    $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 8.0')
+                )
+                ->orderByDesc('latest_release')
+                ->limit(6)
+                ->get()
+        );
 
         $followedIds = [];
         if ($user = $request->user('sanctum')) {
@@ -115,7 +125,7 @@ class ProductController extends Controller
             return collect();
         }
 
-        return \DB::table('reviews')
+        return DB::table('reviews')
             ->join('users', 'users.id', '=', 'reviews.user_id')
             ->whereIn('reviews.product_id', $productIds)
             ->whereIn('reviews.user_id', $followedIds)

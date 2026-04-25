@@ -33,9 +33,9 @@ Route::get('/products/{type}/{slug}', [ProductController::class, 'show']);
 Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
     Route::get('/user/profile', [UserProfileController::class, 'show']);
-    Route::put('/user/profile', [UserProfileController::class, 'update']);
+    Route::put('/user/profile', [UserProfileController::class, 'update'])->middleware('throttle:20,1');
     Route::get('/user/consents', [UserConsentController::class, 'show']);
-    Route::patch('/user/consents', [UserConsentController::class, 'update']);
+    Route::patch('/user/consents', [UserConsentController::class, 'update'])->middleware('throttle:20,1');
     Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
     Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
     Route::get('/user/followers', [UserFollowerController::class, 'index']);
@@ -52,7 +52,7 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::post('/reviews', [ReviewController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/reviews/{review}/edit-form', [ReviewController::class, 'editForm']);
     Route::get('/reviews/{review}/share-data', [ReviewController::class, 'shareData']);
-    Route::put('/reviews/{review}', [ReviewController::class, 'update']);
+    Route::put('/reviews/{review}', [ReviewController::class, 'update'])->middleware('throttle:10,1');
 
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('/igdb/search', [IgdbController::class, 'search']);
@@ -67,23 +67,23 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
         Route::put('products/{product}/purchase-links', [Admin\ProductController::class, 'purchaseLinks']);
 
         Route::get('reviews', [Admin\ReviewController::class, 'index']);
-        Route::post('reviews/{review}/ban', [Admin\ReviewController::class, 'ban']);
-        Route::delete('reviews/{review}/ban', [Admin\ReviewController::class, 'unban']);
+        Route::post('reviews/{review}/ban', [Admin\ReviewController::class, 'ban'])->middleware('throttle:30,1');
+        Route::delete('reviews/{review}/ban', [Admin\ReviewController::class, 'unban'])->middleware('throttle:30,1');
 
         Route::apiResource('surveys', Admin\SurveyController::class);
         Route::get('surveys/{survey}/results', [Admin\SurveyController::class, 'results']);
         Route::apiResource('announcements', Admin\AnnouncementController::class);
 
         Route::get('verify-requests', [Admin\VerificationRequestController::class, 'index']);
-        Route::post('verify-requests/{verificationRequest}/approve', [Admin\VerificationRequestController::class, 'approve']);
-        Route::post('verify-requests/{verificationRequest}/reject', [Admin\VerificationRequestController::class, 'reject']);
+        Route::post('verify-requests/{verificationRequest}/approve', [Admin\VerificationRequestController::class, 'approve'])->middleware('throttle:20,1');
+        Route::post('verify-requests/{verificationRequest}/reject', [Admin\VerificationRequestController::class, 'reject'])->middleware('throttle:20,1');
 
         Route::get('users', [Admin\UserController::class, 'index']);
         Route::get('users/{user}', [Admin\UserController::class, 'show']);
-        Route::post('users/{user}/ban', [Admin\UserController::class, 'ban']);
-        Route::delete('users/{user}/ban', [Admin\UserController::class, 'unban']);
-        Route::patch('users/{user}/role', [Admin\UserController::class, 'updateRole']);
-        Route::post('users/{user}/badge/verify', [Admin\UserController::class, 'grantVerified']);
-        Route::delete('users/{user}/badge/verify', [Admin\UserController::class, 'revokeVerified']);
+        Route::post('users/{user}/ban', [Admin\UserController::class, 'ban'])->middleware('throttle:30,1');
+        Route::delete('users/{user}/ban', [Admin\UserController::class, 'unban'])->middleware('throttle:30,1');
+        Route::patch('users/{user}/role', [Admin\UserController::class, 'updateRole'])->middleware('throttle:10,1');
+        Route::post('users/{user}/badge/verify', [Admin\UserController::class, 'grantVerified'])->middleware('throttle:10,1');
+        Route::delete('users/{user}/badge/verify', [Admin\UserController::class, 'revokeVerified'])->middleware('throttle:10,1');
     });
 });

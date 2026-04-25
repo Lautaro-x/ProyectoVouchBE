@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\VerificationRequest;
+use App\Rules\HttpsUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,7 +24,7 @@ class VerificationRequestController extends Controller
             'type'            => 'required|in:verified,press',
             'social_network'  => 'required_if:type,verified|nullable|string|max:50',
             'social_username' => 'required_if:type,verified|nullable|string|max:100',
-            'press_url'       => 'required_if:type,press|nullable|url|max:500',
+            'press_url'       => ['required_if:type,press', 'nullable', new HttpsUrl(), 'max:500'],
             'press_contact'   => 'required_if:type,press|nullable|string|max:150',
         ]);
 

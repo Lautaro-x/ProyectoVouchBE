@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\Badge;
+use App\Enums\UserRole;
 use App\Models\Product;
 use App\Models\ProductScore;
 use App\Models\Review;
 use App\Models\User;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class ScoringService
 {
@@ -65,23 +67,19 @@ class ScoringService
 
     public function recalculateProductScores(Product $product, ?string $role = null): void
     {
-        $reviews = $product->reviews()->with('user')->whereNull('banned_at')->get();
         $updates = ['updated_at' => now()];
 
-        if ($role === null || $role === 'user') {
-            $updates['global_score'] = $this->average(
-                $reviews->filter(fn(Review $r) => $r->user->role === 'user')
-            );
+        if ($role === null || $role === UserRole::User->value) {
+            $updates['global_score'] = $this->averageByRole($product, UserRole::User->value);
         }
 
-        if ($role === null || $role === 'critic') {
-            $updates['pro_score'] = $this->average(
-                $reviews->filter(fn(Review $r) => $r->user->role === 'critic')
-            );
+        if ($role === null || $role === UserRole::Critic->value) {
+            $updates['pro_score'] = $this->averageByRole($product, UserRole::Critic->value);
         }
 
         if (count($updates) > 1) {
             ProductScore::updateOrCreate(['product_id' => $product->id], $updates);
+            Cache::forget('relevant_products');
         }
     }
 
@@ -95,7 +93,7 @@ class ScoringService
 
     public function followerScore(Product $product, User $user): ?float
     {
-        if (!in_array('verificado', $user->badges ?? [])) return null;
+        if (!in_array(Badge::Verified->value, $user->badges ?? [])) return null;
         if (!$user->consent_follower_score) return null;
 
         return $this->trustScoreFromIds(
@@ -122,12 +120,14 @@ class ScoringService
         return floor($scores->avg() * 10) / 10;
     }
 
-    private function average(Collection $reviews): ?float
+    private function averageByRole(Product $product, string $role): ?float
     {
-        if ($reviews->isEmpty()) {
-            return null;
-        }
+        $avg = $product->reviews()
+            ->join('users', 'users.id', '=', 'reviews.user_id')
+            ->whereNull('reviews.banned_at')
+            ->where('users.role', $role)
+            ->avg('reviews.weighted_score');
 
-        return floor($reviews->avg('weighted_score') * 10) / 10;
+        return $avg !== null ? floor((float) $avg * 10) / 10 : null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ApiResponse;
 use App\Http\Controllers\Concerns\FiltersAudience;
 use App\Models\Survey;
 use App\Models\SurveyResponse;
@@ -10,7 +11,7 @@ use Illuminate\Http\Request;
 
 class SurveyController extends Controller
 {
-    use FiltersAudience;
+    use ApiResponse, FiltersAudience;
 
     public function active(Request $request): JsonResponse
     {
@@ -35,7 +36,7 @@ class SurveyController extends Controller
                 ]),
             ]);
 
-        return response()->json($surveys);
+        return $this->ok($surveys);
     }
 
     public function respond(Request $request, Survey $survey): JsonResponse
@@ -45,7 +46,7 @@ class SurveyController extends Controller
         ]);
 
         if ($survey->options()->where('id', $data['option_id'])->doesntExist()) {
-            return response()->json(['error' => 'Invalid option'], 422);
+            return $this->error('Invalid option');
         }
 
         $alreadyResponded = SurveyResponse::where('survey_id', $survey->id)
@@ -53,7 +54,7 @@ class SurveyController extends Controller
             ->exists();
 
         if ($alreadyResponded) {
-            return response()->json(['error' => 'Already responded'], 422);
+            return $this->error('Already responded');
         }
 
         SurveyResponse::create([
@@ -62,6 +63,6 @@ class SurveyController extends Controller
             'option_id' => $data['option_id'],
         ]);
 
-        return response()->json(['message' => 'ok']);
+        return $this->ok();
     }
 }

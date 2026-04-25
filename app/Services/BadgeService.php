@@ -2,25 +2,26 @@
 
 namespace App\Services;
 
+use App\Enums\Badge;
 use App\Models\Review;
 use App\Models\User;
 
 class BadgeService
 {
     const REVIEW_MILESTONES = [
-        10  => 'critico-novel',
-        20  => 'critico-junior',
-        50  => 'critico-senior',
-        100 => 'critico-maestro',
-        200 => 'el-critico',
+        10  => Badge::NoviceCritic,
+        20  => Badge::JuniorCritic,
+        50  => Badge::SeniorCritic,
+        100 => Badge::MasterCritic,
+        200 => Badge::TheCritic,
     ];
 
     const FOLLOWER_MILESTONES = [
-        10   => 'critico-amigo',
-        100  => 'critico-solicitado',
-        1000 => 'critico-fiable',
-        3000 => 'critico-famoso',
-        6000 => 'critico-influyente',
+        10   => Badge::FriendCritic,
+        100  => Badge::SoughtCritic,
+        1000 => Badge::ReliableCritic,
+        3000 => Badge::FamousCritic,
+        6000 => Badge::InfluentialCritic,
     ];
 
     public function award(User $user, string $badge): void
@@ -49,23 +50,24 @@ class BadgeService
         $result = [];
 
         foreach (self::REVIEW_MILESTONES as $threshold => $badge) {
-            $result[$badge] = [
+            $result[$badge->value] = [
                 'current'   => min($reviews, $threshold),
                 'threshold' => $threshold,
-                'awarded'   => in_array($badge, $awarded, true),
-                'claimable' => $reviews >= $threshold && !in_array($badge, $awarded, true),
+                'awarded'   => in_array($badge->value, $awarded, true),
+                'claimable' => $reviews >= $threshold && !in_array($badge->value, $awarded, true),
             ];
         }
 
         foreach (self::FOLLOWER_MILESTONES as $threshold => $badge) {
-            $result[$badge] = [
+            $result[$badge->value] = [
                 'current'   => min($followers, $threshold),
                 'threshold' => $threshold,
-                'awarded'   => in_array($badge, $awarded, true),
-                'claimable' => $followers >= $threshold && !in_array($badge, $awarded, true),
+                'awarded'   => in_array($badge->value, $awarded, true),
+                'claimable' => $followers >= $threshold && !in_array($badge->value, $awarded, true),
             ];
         }
 
+        $fastBadge       = Badge::FastCritic;
         $isFirstReviewer = Review::where('user_id', $user->id)
             ->whereNull('banned_at')
             ->whereNotExists(function ($q) use ($user) {
@@ -77,11 +79,11 @@ class BadgeService
             })
             ->exists();
 
-        $result['critico-rapido'] = [
+        $result[$fastBadge->value] = [
             'current'   => $isFirstReviewer ? 1 : 0,
             'threshold' => 1,
-            'awarded'   => in_array('critico-rapido', $awarded, true),
-            'claimable' => $isFirstReviewer && !in_array('critico-rapido', $awarded, true),
+            'awarded'   => in_array($fastBadge->value, $awarded, true),
+            'claimable' => $isFirstReviewer && !in_array($fastBadge->value, $awarded, true),
         ];
 
         return $result;

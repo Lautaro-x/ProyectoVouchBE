@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Rules\HttpsUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,11 +13,11 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         return response()->json([
-            'id'             => $user->id,
-            'name'           => $user->name,
-            'email'          => $user->email,
-            'avatar'         => $user->avatar,
-            'role'           => $user->role,
+            'id'           => $user->id,
+            'name'         => $user->name,
+            'email'        => $user->email,
+            'avatar'       => $user->avatar,
+            'role'         => $user->role,
             'badges'       => $user->badges ?? [],
             'social_links' => $user->social_links ?? [],
         ]);
@@ -31,13 +32,13 @@ class UserProfileController extends Controller
     {
         $request->validate([
             'name'                   => 'sometimes|string|max:25',
-            'avatar'                 => 'sometimes|nullable|url|max:500',
+            'avatar'                 => ['sometimes', 'nullable', new HttpsUrl(), 'max:500'],
             'social_links'           => 'sometimes|nullable|array',
-            'social_links.*.url'     => 'nullable|url|max:500',
+            'social_links.*.url'     => ['nullable', new HttpsUrl(), 'max:500'],
             'social_links.*.shared'  => 'boolean',
-            'card_big_bg'            => 'sometimes|nullable|url|max:500',
-            'card_mid_bg'            => 'sometimes|nullable|url|max:500',
-            'card_mini_bg'           => 'sometimes|nullable|url|max:500',
+            'card_big_bg'            => ['sometimes', 'nullable', new HttpsUrl(), 'max:500'],
+            'card_mid_bg'            => ['sometimes', 'nullable', new HttpsUrl(), 'max:500'],
+            'card_mini_bg'           => ['sometimes', 'nullable', new HttpsUrl(), 'max:500'],
         ]);
 
         $request->user()->update($request->only([

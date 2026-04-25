@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ApiResponse;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\ReviewScore;
 use App\Services\ScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ReviewController extends Controller
 {
+    use ApiResponse;
+
     public function __construct(private ScoringService $scoring) {}
 
     public function store(Request $request): JsonResponse
@@ -27,46 +31,50 @@ class ReviewController extends Controller
         $product = Product::findOrFail($data['product_id']);
 
         if ($user->reviews()->where('product_id', $product->id)->exists()) {
-            return response()->json(['message' => 'Already reviewed.'], 422);
+            return $this->error('Already reviewed.');
         }
 
-        $review = Review::create([
-            'user_id'        => $user->id,
-            'product_id'     => $product->id,
-            'body'           => $data['body'] ?? null,
-            'weighted_score' => 0,
-            'letter_grade'   => 'F',
-        ]);
-
-        foreach ($data['scores'] as $s) {
-            ReviewScore::create([
-                'review_id'   => $review->id,
-                'category_id' => $s['category_id'],
-                'score'       => $s['score'],
+        $review = DB::transaction(function () use ($data, $user, $product) {
+            $review = Review::create([
+                'user_id'        => $user->id,
+                'product_id'     => $product->id,
+                'body'           => $data['body'] ?? null,
+                'weighted_score' => 0,
+                'letter_grade'   => 'F',
             ]);
-        }
 
-        $review->load('scores');
-        $weightedScore = $this->scoring->calculateWeightedScore($review);
-        $review->update([
-            'weighted_score' => $weightedScore,
-            'letter_grade'   => $this->scoring->calculateLetterGrade($weightedScore),
-        ]);
+            foreach ($data['scores'] as $s) {
+                ReviewScore::create([
+                    'review_id'   => $review->id,
+                    'category_id' => $s['category_id'],
+                    'score'       => $s['score'],
+                ]);
+            }
+
+            $review->load('scores');
+            $weightedScore = $this->scoring->calculateWeightedScore($review);
+            $review->update([
+                'weighted_score' => $weightedScore,
+                'letter_grade'   => $this->scoring->calculateLetterGrade($weightedScore),
+            ]);
+
+            return $review;
+        });
 
         $this->scoring->recalculateProductScores($product, $user->role);
 
-        return response()->json($review->fresh(), 201);
+        return $this->created($review->fresh());
     }
 
     public function editForm(Request $request, Review $review): JsonResponse
     {
         if ($review->user_id !== $request->user()->id) {
-            abort(403);
+            return $this->forbidden();
         }
 
         $product = $review->product->load(['genres.categories']);
 
-        return response()->json([
+        return $this->ok([
             'id'          => $product->id,
             'title'       => $product->title,
             'cover_image' => $product->cover_image,
@@ -81,12 +89,12 @@ class ReviewController extends Controller
     public function shareData(Request $request, Review $review): JsonResponse
     {
         if ($review->user_id !== $request->user()->id) {
-            abort(403);
+            return $this->forbidden();
         }
 
         $review->load(['scores.category', 'user', 'product']);
 
-        return response()->json([
+        return $this->ok([
             'review' => [
                 'id'             => $review->id,
                 'body'           => $review->body,
@@ -112,7 +120,7 @@ class ReviewController extends Controller
     public function update(Request $request, Review $review): JsonResponse
     {
         if ($review->user_id !== $request->user()->id) {
-            abort(403);
+            return $this->forbidden();
         }
 
         $data = $request->validate([
@@ -122,23 +130,25 @@ class ReviewController extends Controller
             'scores.*.score'       => 'required|integer|min:0|max:10',
         ]);
 
-        $review->update(['body' => $data['body'] ?? null]);
+        DB::transaction(function () use ($data, $review) {
+            $review->update(['body' => $data['body'] ?? null]);
 
-        foreach ($data['scores'] as $s) {
-            ReviewScore::where('review_id', $review->id)
-                ->where('category_id', $s['category_id'])
-                ->update(['score' => $s['score']]);
-        }
+            foreach ($data['scores'] as $s) {
+                ReviewScore::where('review_id', $review->id)
+                    ->where('category_id', $s['category_id'])
+                    ->update(['score' => $s['score']]);
+            }
 
-        $review->load('scores');
-        $weightedScore = $this->scoring->calculateWeightedScore($review);
-        $review->update([
-            'weighted_score' => $weightedScore,
-            'letter_grade'   => $this->scoring->calculateLetterGrade($weightedScore),
-        ]);
+            $review->load('scores');
+            $weightedScore = $this->scoring->calculateWeightedScore($review);
+            $review->update([
+                'weighted_score' => $weightedScore,
+                'letter_grade'   => $this->scoring->calculateLetterGrade($weightedScore),
+            ]);
+        });
 
         $this->scoring->recalculateProductScores($review->product, $review->user->role);
 
-        return response()->json($review->fresh());
+        return $this->ok($review->fresh());
     }
 }
