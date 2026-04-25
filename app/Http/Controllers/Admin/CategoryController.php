@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class CategoryController extends Controller
@@ -18,10 +19,18 @@ class CategoryController extends Controller
         ['sortBy' => $sortBy, 'sortDir' => $sortDir, 'perPage' => $perPage] =
             $this->paginationParams($request, ['id', 'name', 'slug']);
 
+        if ($request->input('all') === '1' && !$request->filled('search')) {
+            return response()->json(
+                Cache::remember('admin_categories_all', 3600, fn() =>
+                    Category::orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(name, '$.en')) asc")->get()
+                )
+            );
+        }
+
         $query = Category::query();
 
-        if ($request->search) {
-            $query->searchTranslatable($request->search);
+        if ($request->filled('search')) {
+            $query->searchTranslatable($request->input('search'));
         }
 
         if ($sortBy === 'name') {
@@ -30,7 +39,7 @@ class CategoryController extends Controller
             $query->orderBy($sortBy, $sortDir);
         }
 
-        if ($request->all === '1') {
+        if ($request->input('all') === '1') {
             return response()->json($query->get());
         }
 
@@ -67,6 +76,7 @@ class CategoryController extends Controller
             'slug'        => $slug,
             'description' => $data['description'] ?? null,
         ]);
+        Cache::forget('admin_categories_all');
 
         return response()->json($category, 201);
     }
@@ -100,6 +110,7 @@ class CategoryController extends Controller
         $category->setTranslations('description', $data['description'] ?? []);
         $category->slug = $slug;
         $category->save();
+        Cache::forget('admin_categories_all');
 
         return response()->json($category);
     }
@@ -107,6 +118,7 @@ class CategoryController extends Controller
     public function destroy(Category $category): JsonResponse
     {
         $category->delete();
+        Cache::forget('admin_categories_all');
         return response()->json(null, 204);
     }
 }

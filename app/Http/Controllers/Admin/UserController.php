@@ -21,11 +21,11 @@ class UserController extends Controller
             $this->paginationParams($request, ['id', 'name', 'email', 'created_at']);
 
         $users = User::select(['id', 'name', 'email', 'role', 'avatar', 'badges', 'banned_at', 'ban_reason', 'created_at'])
-            ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))
-            ->when($request->role, fn($q) => $q->where('role', $request->role))
-            ->when($request->search, fn($q) => $q->where(function ($inner) use ($request) {
-                $inner->where('name', 'like', "%{$request->search}%")
-                      ->orWhere('email', 'like', "%{$request->search}%");
+            ->when($request->input('banned'), fn($q) => $q->whereNotNull('banned_at'))
+            ->when($request->input('role'), fn($q) => $q->where('role', $request->input('role')))
+            ->when($request->filled('search'), fn($q) => $q->where(function ($inner) use ($request) {
+                $inner->where('name', 'like', "%{$request->input('search')}%")
+                      ->orWhere('email', 'like', "%{$request->input('search')}%");
             }))
             ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);

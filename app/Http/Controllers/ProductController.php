@@ -178,8 +178,10 @@ class ProductController extends Controller
                 ];
             }
 
-            $trustScore    = $this->scoring->calculateTrustScore($product, $user);
-            $followerScore = $this->scoring->followerScore($product, $user);
+            $followingIds  = $user->following()->pluck('followed_id')->toArray();
+            $followerIds   = $user->followers()->pluck('follower_id')->toArray();
+            $trustScore    = $this->scoring->trustScoreFromIds($product, $followingIds);
+            $followerScore = $this->scoring->followerScoreFromIds($product, $user, $followerIds);
         }
 
         return response()->json([

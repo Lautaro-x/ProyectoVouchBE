@@ -297,6 +297,8 @@ Solo actualiza plataformas ya vinculadas al producto (`updateExistingPivot`). No
 - Excepción: `Follows` (auto-referencial Users–Users)
 - Campos: snake_case minúscula
 
+**Deuda técnica:** Las tablas principales (`Products`, `Reviews`) usan PascalCase, que no es la convención de Laravel (snake_case: `products`, `reviews`). Esto obliga a declarar `protected $table` explícitamente en los modelos afectados y a referenciar el nombre exacto en migraciones y queries. No está planificado un renombrado porque implicaría una migración destructiva en producción; se acepta como deuda conocida.
+
 ### Esquema completo
 
 ```
@@ -1097,8 +1099,61 @@ Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisa
 
 ---
 
+## Auditoría backend batch 3 — optimización y arquitectura (2026-04-25)
+
+### Performance
+
+**P3 — Pre-carga de followingIds/followerIds en `ProductController::show()`**
+`show()` llamaba a `calculateTrustScore()` (pluck de following) y `followerScore()` (pluck de followers) por separado: 2 queries independientes en cada detalle de producto. Ahora ambos arrays se resuelven una sola vez antes de llamar a `trustScoreFromIds()` y `followerScoreFromIds()`. `calculateTrustScore()` y `followerScore()` han sido reemplazados por `followerScoreFromIds(Product, User, array): ?float` en `ScoringService`, que recibe los IDs ya resueltos.
+
+**P4 — Cache de `BadgeService::getProgress()` por usuario (5 min)**
+`getProgress()` ejecutaba 2–3 queries (conteo de reseñas, seguidores, subquery de primer revisor) en cada llamada. Ahora está cacheado 5 minutos con clave `badge_progress_{userId}`. La invalidación se produce en:
+- `BadgeService::award()` y `revoke()` — al cambiar el array de badges
+- `ReviewController::store()` — al crear una reseña (cambia el conteo)
+- `Admin\ReviewController::ban()` y `unban()` — al cambiar la cuenta de reseñas activas
+
+**P5 — `PublicCardController::is_following` via DB directo**
+El check `$viewer->following()->where('followed_id', $user->id)->exists()` usaba la cadena BelongsToMany completa. Reemplazado por `DB::table('Follows')->where(...)->exists()` que evita la instanciación de la relación Eloquent.
+
+**P6 — Cache de listas completas de géneros y categorías en admin (1 hora)**
+El branch `?all=1` sin search en `GenreController` y `CategoryController` devolvía todos los registros sin cachear. Estas listas se usan para poblar selects en el formulario de productos y se modifican raramente. Ahora se cachean 1 hora con clave `admin_genres_all` / `admin_categories_all`. La invalidación ocurre automáticamente en `store()`, `update()`, `destroy()` y `syncCategories()`.
+
+### Calidad de código
+
+**C4 — Form Request classes**
+Las reglas de validación extraídas a clases dedicadas en `app/Http/Requests/`:
+- `StoreReviewRequest` — validación de `product_id`, `body`, `scores[]`
+- `UpdateReviewRequest` — validación de `body`, `scores[]`
+- `UpdateProfileRequest` — validación de `name`, `avatar`, `social_links`, backgrounds (incluye `HttpsUrl` rule)
+
+Los controllers afectados (`ReviewController`, `UserProfileController`) tipan el argumento directamente y llaman a `$request->validated()`.
+
+**C5 — Eliminación de acceso mágico `$request->prop`**
+`$request->search`, `$request->banned`, `$request->role`, `$request->all` reemplazados por `$request->input('...')` y `$request->filled('...')` en `Admin\UserController`, `Admin\ReviewController`, `Admin\GenreController` y `Admin\CategoryController`. Previene acceso accidental a propiedades inexistentes silenciosas.
+
+### Arquitectura
+
+**A1 — SoftDeletes en User, Product y Review**
+Los tres modelos principales ahora usan `SoftDeletes`. Las filas eliminadas se marcan con `deleted_at` en lugar de borrarse físicamente, lo que permite auditoría y restauración futura.
+
+Migraciones creadas:
+- `2026_04_25_000001_add_soft_deletes_to_users_table.php`
+- `2026_04_25_000002_add_soft_deletes_to_products_table.php`
+- `2026_04_25_000003_add_soft_deletes_to_reviews_table.php`
+
+**Migración necesaria:**
+```bash
+php artisan migrate
+```
+
+**A3 — Deuda de naming documentada**
+Ver "Convención de nombres → Deuda técnica" en la sección de Base de datos.
+
+---
+
 ## Novedades recientes
 
+- Auditoría backend batch 3: SoftDeletes en User/Product/Review (3 migraciones); cache de `BadgeService::getProgress()` 5 min con invalidación automática; cache de listas admin genres/categories 1h; pre-carga única de followingIds/followerIds en `ProductController::show()`; Form Requests para store/update review y update profile; `$request->input()` en todos los controllers admin; deuda de naming de tablas documentada.
 - Hardening de seguridad fase 2: `HttpsUrl` rule rechaza URLs no-https en avatar/card backgrounds/social links/press_url; throttle añadido a 8 rutas sin protección (perfil, reseña, consents, admin ban/role/verify); `SecurityHeaders` middleware inyecta `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy` en todas las respuestas API.
 - Performance: `ProductController::relevant()` usa ORDER BY + LIMIT en SQL en lugar de cargar todos los productos en PHP; resultado cacheado 10 min con invalidación automática al recalcular scores. `ScoringService::recalculateProductScores` sustituye el `->with('user')->get()->filter()` por `averageByRole()` con JOIN en SQL.
 - Calidad: enums `UserRole` y `Badge` reemplazan los strings mágicos de roles y badges en toda la codebase; trait `ApiResponse` unifica el formato de todas las respuestas de error (`message` siempre, nunca `error`); `ReviewController::store/update` envueltos en `DB::transaction`.

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\Badge;
 use App\Models\Review;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 class BadgeService
 {
@@ -30,6 +31,7 @@ class BadgeService
         if (!in_array($badge, $badges, true)) {
             $user->badges = [...$badges, $badge];
             $user->save();
+            Cache::forget("badge_progress_{$user->id}");
         }
     }
 
@@ -39,9 +41,17 @@ class BadgeService
             array_filter($user->badges ?? [], fn($b) => $b !== $badge)
         );
         $user->save();
+        Cache::forget("badge_progress_{$user->id}");
     }
 
     public function getProgress(User $user): array
+    {
+        return Cache::remember("badge_progress_{$user->id}", 300, function () use ($user) {
+            return $this->buildProgress($user);
+        });
+    }
+
+    private function buildProgress(User $user): array
     {
         $awarded   = $user->badges ?? [];
         $reviews   = $user->reviews()->whereNull('banned_at')->count();

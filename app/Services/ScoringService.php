@@ -83,23 +83,12 @@ class ScoringService
         }
     }
 
-    public function calculateTrustScore(Product $product, User $user): ?float
-    {
-        return $this->trustScoreFromIds(
-            $product,
-            $user->following()->pluck('followed_id')->toArray()
-        );
-    }
-
-    public function followerScore(Product $product, User $user): ?float
+    public function followerScoreFromIds(Product $product, User $user, array $followerIds): ?float
     {
         if (!in_array(Badge::Verified->value, $user->badges ?? [])) return null;
         if (!$user->consent_follower_score) return null;
 
-        return $this->trustScoreFromIds(
-            $product,
-            $user->followers()->pluck('follower_id')->toArray()
-        );
+        return $this->trustScoreFromIds($product, $followerIds);
     }
 
     public function trustScoreFromIds(Product $product, array $followedIds): ?float

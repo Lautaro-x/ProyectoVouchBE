@@ -8,6 +8,7 @@ use App\Models\Review;
 use App\Services\ScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class ReviewController extends Controller
 {
@@ -21,10 +22,10 @@ class ReviewController extends Controller
             $this->paginationParams($request, ['id', 'weighted_score', 'created_at']);
 
         $reviews = Review::with(['user', 'product'])
-            ->when($request->banned, fn($q) => $q->whereNotNull('banned_at'))
-            ->when($request->search, fn($q) => $q->where(function ($inner) use ($request) {
-                $inner->whereHas('user', fn($u) => $u->where('name', 'like', "%{$request->search}%"))
-                      ->orWhereHas('product', fn($p) => $p->where('title', 'like', "%{$request->search}%"));
+            ->when($request->input('banned'), fn($q) => $q->whereNotNull('banned_at'))
+            ->when($request->filled('search'), fn($q) => $q->where(function ($inner) use ($request) {
+                $inner->whereHas('user', fn($u) => $u->where('name', 'like', "%{$request->input('search')}%"))
+                      ->orWhereHas('product', fn($p) => $p->where('title', 'like', "%{$request->input('search')}%"));
             }))
             ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
@@ -44,6 +45,7 @@ class ReviewController extends Controller
         ]);
 
         $this->scoring->recalculateProductScores($review->product);
+        Cache::forget("badge_progress_{$review->user_id}");
 
         return response()->json($review);
     }
@@ -53,6 +55,7 @@ class ReviewController extends Controller
         $review->update(['banned_at' => null, 'ban_reason' => null]);
 
         $this->scoring->recalculateProductScores($review->product);
+        Cache::forget("badge_progress_{$review->user_id}");
 
         return response()->json($review);
     }

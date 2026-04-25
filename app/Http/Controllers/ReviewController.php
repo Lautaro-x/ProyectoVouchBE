@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ApiResponse;
+use App\Http\Requests\StoreReviewRequest;
+use App\Http\Requests\UpdateReviewRequest;
 use App\Models\Product;
 use App\Models\Review;
 use App\Models\ReviewScore;
 use App\Services\ScoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ReviewController extends Controller
@@ -17,17 +20,10 @@ class ReviewController extends Controller
 
     public function __construct(private ScoringService $scoring) {}
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreReviewRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'product_id'           => 'required|exists:Products,id',
-            'body'                 => 'nullable|string|max:2000',
-            'scores'               => 'required|array|min:1',
-            'scores.*.category_id' => 'required|exists:Categories,id',
-            'scores.*.score'       => 'required|integer|min:0|max:10',
-        ]);
-
-        $user    = $request->user();
+        $data = $request->validated();
+        $user = $request->user();
         $product = Product::findOrFail($data['product_id']);
 
         if ($user->reviews()->where('product_id', $product->id)->exists()) {
@@ -62,6 +58,7 @@ class ReviewController extends Controller
         });
 
         $this->scoring->recalculateProductScores($product, $user->role);
+        Cache::forget("badge_progress_{$user->id}");
 
         return $this->created($review->fresh());
     }
@@ -117,18 +114,13 @@ class ReviewController extends Controller
         ]);
     }
 
-    public function update(Request $request, Review $review): JsonResponse
+    public function update(UpdateReviewRequest $request, Review $review): JsonResponse
     {
         if ($review->user_id !== $request->user()->id) {
             return $this->forbidden();
         }
 
-        $data = $request->validate([
-            'body'                 => 'nullable|string|max:2000',
-            'scores'               => 'required|array|min:1',
-            'scores.*.category_id' => 'required|exists:Categories,id',
-            'scores.*.score'       => 'required|integer|min:0|max:10',
-        ]);
+        $data = $request->validated();
 
         DB::transaction(function () use ($data, $review) {
             $review->update(['body' => $data['body'] ?? null]);
