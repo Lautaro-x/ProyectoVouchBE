@@ -113,9 +113,9 @@ Frontend obtiene credential de Google (JWT)
 
 **Decisión de arquitectura:** Se eligió el flujo frontend-iniciado (Google Identity Services) en lugar del flujo de redirección tradicional porque no requiere redirect URIs configurados, el token nunca viaja en la URL, y es el estándar actual de Google.
 
-**Verificación del token:** Se llama a `https://oauth2.googleapis.com/tokeninfo?id_token={credential}` desde el backend para verificar la autenticidad del token y validar que el `aud` coincide con `GOOGLE_CLIENT_ID`. Sin librerías externas adicionales.
+**Verificación del token:** `GoogleJwtService` descarga las claves públicas de Google (JWKS endpoint), las cachea 1 hora, convierte el JWK a PEM usando funciones nativas de OpenSSL y verifica la firma RSA-SHA256 localmente. Además valida `iss`, `aud`, `exp` y `email_verified`. Sin librerías externas adicionales.
 
-**Gestión de usuarios:** Si el usuario ya existe por email o google_id, se actualiza. Si no, se crea. Al hacer login se revocan todos los tokens anteriores y se emite uno nuevo.
+**Gestión de usuarios:** Se busca primero por `google_id`. Si no existe, se busca por email: si el email existe sin `google_id` se vincula; si existe con `google_id` distinto se devuelve 409 para evitar account takeover. Si no existe, se crea. Al hacer login se revocan todos los tokens anteriores y se emite uno nuevo.
 
 **Endpoints:**
 ```
@@ -128,7 +128,7 @@ GET  /api/user              Header: Authorization: Bearer {token}
 ### Middleware de seguridad
 
 **`AdminMiddleware`** (`app/Http/Middleware/AdminMiddleware.php`)
-Verifica que el usuario autenticado tenga `role === 'admin'`. Devuelve 403 si no.
+Verifica que el usuario autenticado tenga `role === 'admin'` **y** que no esté baneado (`banned_at === null`). Devuelve 403 si no.
 Registrado como `admin` en `bootstrap/app.php`.
 
 **`CheckBanned`** (`app/Http/Middleware/CheckBanned.php`)
@@ -1099,6 +1099,7 @@ Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisa
 
 ## Novedades recientes
 
+- Hardening de seguridad (auditoría): CORS restringido a `FRONTEND_URL`; verificación criptográfica local de JWT de Google con firma RSA-SHA256 y validación de `iss`/`aud`/`exp`/`email_verified`; fix de account takeover en login por email; `AdminMiddleware` bloquea admins baneados.
 - Filtros de navegación desde detalle de producto: géneros, desarrollador, distribuidora, franquicia, temática, modo de juego y perspectiva son ahora enlaces que llevan a `/games` filtrado, con chip visible y botón para limpiar el filtro.
 - Sistema de solicitudes de verificación completo: formulario de usuario, panel de admin con aprobación/rechazo, actualización automática de badge y rol según tipo (verified / press).
 - Rótulo de última valoración fiable en game-card: si alguien a quien sigues ha valorado el juego en el último mes, aparece su nota como etiqueta inclinada flotando sobre la portada.

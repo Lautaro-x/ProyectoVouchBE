@@ -10,7 +10,9 @@ class AdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->role !== 'admin') {
+        $user = $request->user();
+
+        if ($user?->role !== 'admin' || $user->banned_at !== null) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 

@@ -3,38 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\GoogleJwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
+    public function __construct(private GoogleJwtService $googleJwt) {}
+
     public function googleLogin(Request $request): JsonResponse
     {
         $request->validate(['credential' => 'required|string']);
 
-        $googleUser = $this->verifyGoogleToken($request->credential);
+        $googleUser = $this->googleJwt->verify($request->credential);
 
         if (!$googleUser) {
             return response()->json(['message' => 'Token inválido'], 401);
         }
 
-        $user = User::where('google_id', $googleUser['sub'])
-            ->orWhere('email', $googleUser['email'])
-            ->first();
+        $user = User::where('google_id', $googleUser['sub'])->first();
 
-        if ($user) {
-            $user->update([
-                'google_id' => $googleUser['sub'],
-            ]);
-        } else {
-            $user = User::create([
-                'google_id'         => $googleUser['sub'],
-                'name'              => $googleUser['name'],
-                'email'             => $googleUser['email'],
-                'avatar'            => $googleUser['picture'],
-                'email_verified_at' => now(),
-            ]);
+        if (!$user) {
+            $existing = User::where('email', $googleUser['email'])->first();
+
+            if ($existing) {
+                if ($existing->google_id !== null) {
+                    return response()->json(['message' => 'Email ya asociado a otra cuenta de Google'], 409);
+                }
+                $existing->update(['google_id' => $googleUser['sub']]);
+                $user = $existing;
+            } else {
+                $user = User::create([
+                    'google_id'         => $googleUser['sub'],
+                    'name'              => $googleUser['name'],
+                    'email'             => $googleUser['email'],
+                    'avatar'            => $googleUser['picture'],
+                    'email_verified_at' => now(),
+                ]);
+            }
         }
 
         $user->tokens()->delete();
@@ -44,24 +50,5 @@ class AuthController extends Controller
             'token' => $token,
             'user'  => $user,
         ]);
-    }
-
-    private function verifyGoogleToken(string $credential): ?array
-    {
-        $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
-            'id_token' => $credential,
-        ]);
-
-        if (!$response->successful()) {
-            return null;
-        }
-
-        $data = $response->json();
-
-        if ($data['aud'] !== config('services.google.client_id')) {
-            return null;
-        }
-
-        return $data;
     }
 }
