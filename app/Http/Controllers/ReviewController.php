@@ -78,6 +78,37 @@ class ReviewController extends Controller
         ]);
     }
 
+    public function shareData(Request $request, Review $review): JsonResponse
+    {
+        if ($review->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        $review->load(['scores.category', 'user', 'product']);
+
+        return response()->json([
+            'review' => [
+                'id'             => $review->id,
+                'body'           => $review->body,
+                'letter_grade'   => $review->letter_grade,
+                'weighted_score' => $review->weighted_score,
+            ],
+            'product' => [
+                'title'       => $review->product->title,
+                'cover_image' => $review->product->cover_image,
+            ],
+            'user' => [
+                'name'   => $review->user->name,
+                'avatar' => $review->user->avatar,
+            ],
+            'scores' => $review->scores->map(fn($s) => [
+                'category_id' => $s->category_id,
+                'name'        => $s->category->getTranslations('name'),
+                'score'       => $s->score,
+            ]),
+        ]);
+    }
+
     public function update(Request $request, Review $review): JsonResponse
     {
         if ($review->user_id !== $request->user()->id) {

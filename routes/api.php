@@ -51,6 +51,7 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::delete('/user/follow/{user}', [FollowController::class, 'unfollow'])->middleware('throttle:30,1');
     Route::post('/reviews', [ReviewController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/reviews/{review}/edit-form', [ReviewController::class, 'editForm']);
+    Route::get('/reviews/{review}/share-data', [ReviewController::class, 'shareData']);
     Route::put('/reviews/{review}', [ReviewController::class, 'update']);
 
     Route::middleware('admin')->prefix('admin')->group(function () {

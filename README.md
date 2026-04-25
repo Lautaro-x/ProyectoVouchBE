@@ -1102,4 +1102,5 @@ Tabla filtrable por estado (pending/approved/rejected). Al hacer clic en "Revisa
 - Filtros de navegación desde detalle de producto: géneros, desarrollador, distribuidora, franquicia, temática, modo de juego y perspectiva son ahora enlaces que llevan a `/games` filtrado, con chip visible y botón para limpiar el filtro.
 - Sistema de solicitudes de verificación completo: formulario de usuario, panel de admin con aprobación/rechazo, actualización automática de badge y rol según tipo (verified / press).
 - Rótulo de última valoración fiable en game-card: si alguien a quien sigues ha valorado el juego en el último mes, aparece su nota como etiqueta inclinada flotando sobre la portada.
+- Generador de imagen de crítica: overlay con canvas 1080×1080, 3 diseños (portada izq./der./minimalista), 3 tipos de gráfica, portada completa sin recorte con difuminado de borde, fondo configurable (color sólido / fondo del juego / URL / imagen subida desde dispositivo), color de gráfica, color de texto y fondo de gráfica con opacidad ajustable.
 
