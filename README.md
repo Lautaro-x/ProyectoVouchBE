@@ -657,6 +657,44 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 
 ---
 
+## Checklist de producción
+
+Todo lo que hay que hacer antes de subir el backend a un servidor real.
+
+### Variables de entorno (`.env`)
+
+- [ ] `APP_ENV=production` y `APP_DEBUG=false`
+- [ ] `APP_KEY` generado (`php artisan key:generate`)
+- [ ] `APP_URL` apuntando al dominio real del backend (ej: `https://api.vouch.gg`)
+- [ ] `FRONTEND_URL` apuntando al dominio real del frontend (ej: `https://vouch.gg`) — afecta CORS y la URL base del sitemap
+- [ ] Credenciales de base de datos MySQL reales (`DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`)
+- [ ] `GOOGLE_CLIENT_ID` real, con el dominio del frontend añadido en Google Cloud Console → Credenciales → Orígenes de JavaScript autorizados
+- [ ] `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET` para la integración IGDB
+
+### Base de datos
+
+- [ ] Ejecutar `php artisan migrate` en el servidor de producción
+- [ ] Ejecutar `php artisan db:seed` para sembrar géneros, categorías y pesos iniciales
+- [ ] Verificar que las tablas con soft deletes tienen columna `deleted_at` (`Users`, `Products`, `Reviews`)
+
+### Servidor
+
+- [ ] Permisos correctos en `storage/` y `bootstrap/cache/` (`chmod -R 775`)
+- [ ] El directorio `public/` es el document root del virtual host (Apache/nginx)
+- [ ] `php artisan config:cache && php artisan route:cache && php artisan view:cache` para optimización
+- [ ] Cron de Laravel configurado para `scores:snapshot` (diario a las 03:00):
+  ```
+  * * * * * php /ruta/al/proyecto/artisan schedule:run >> /dev/null 2>&1
+  ```
+
+### Verificación post-deploy
+
+- [ ] `GET /api/auth/google` responde (test con Postman o curl)
+- [ ] `GET /sitemap.xml` devuelve XML válido con las rutas del frontend real
+- [ ] CORS no bloquea requests desde el dominio del frontend
+
+---
+
 ## Badges y logros
 
 Sistema de logros automáticos basado en hitos de actividad. Los badges se almacenan en `users.badges` (JSON array de slugs). El servicio central es `BadgeService` (`app/Services/BadgeService.php`).
