@@ -641,6 +641,7 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [x] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
 - [x] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
 - [x] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos (requiere badge `verificado` + consentimiento explícito)
+- [x] Sitemap dinámico — `GET /sitemap.xml` via `SitemapController` + vista Blade; incluye `/`, `/games` y todas las rutas de producto con `lastmod` real; URL base leída de `FRONTEND_URL`
 - [ ] Creación de estilos propios — identidad visual de la plataforma (tipografía, paleta, personalidad)
 - [ ] Investigar AdSense / Carbon Ads para monetización
 
@@ -1180,6 +1181,7 @@ Ver "Convención de nombres → Deuda técnica" en la sección de Base de datos.
 
 ## Novedades recientes
 
+- Sitemap dinámico: `GET /sitemap.xml` en `routes/web.php` → `SitemapController`; genera XML con `sitemap.blade.php`; incluye `/`, `/games` y todas las rutas `/product/{type}/{slug}` con `lastmod` real; URL base leída de `FRONTEND_URL`; el frontend (Express `server.ts`) actúa de proxy para que el sitemap viva en el dominio del frontend; `public/robots.txt` con `Disallow` para rutas privadas y directiva `Sitemap:`.
 - IGDB API v4: campo `category` renombrado a `game_type`; `external_games.category` eliminado → detección de tienda por dominio de URL en `buildStoreUrlMap()`; filtro `version_parent = null` + `game_type ∈ {0,4,8,9}` en `search()`, `topByGenre()` y `recentGames()` para excluir DLCs/mods/ediciones; búsqueda enriquecida con `already_imported`; `ProductPlatformPivot` (clase Pivot personalizada) resuelve cast de `purchase_url` JSON que `withCasts()` no serializa correctamente en el pivote.
 - Links de tienda como JSON por plataforma: `purchase_url` en `Product_x_Platform` migrado de varchar a JSON; `gog_url`/`epic_url` eliminados de `GameDetails`; importación IGDB mapea automáticamente Steam/GOG/Epic/PlayStation/Xbox/eShop al pivote correspondiente; endpoint `import-recent` importa juegos de las últimas 48h; `sync-igdb` actualiza un producto existente desde IGDB; panel admin muestra inputs por tienda en el diálogo de links y botón Sync IGDB (icono SVG) por producto; detalle de producto renderiza un botón de compra por tienda.
 - Auditoría backend batch 3: SoftDeletes en User/Product/Review (3 migraciones); cache de `BadgeService::getProgress()` 5 min con invalidación automática; cache de listas admin genres/categories 1h; pre-carga única de followingIds/followerIds en `ProductController::show()`; Form Requests para store/update review y update profile; `$request->input()` en todos los controllers admin; deuda de naming de tablas documentada.
