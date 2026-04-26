@@ -11,7 +11,10 @@
       "Bash(sed -n '448,455p' \"d:\\\\laragon\\\\www\\\\ProyectoVouchFE\\\\public\\\\i18n\\\\en.json\")",
       "Bash(sed -n '446,453p' \"d:\\\\laragon\\\\www\\\\ProyectoVouchFE\\\\public\\\\i18n\\\\fr.json\")",
       "Bash(sed -n '446,453p' \"d:\\\\laragon\\\\www\\\\ProyectoVouchFE\\\\public\\\\i18n\\\\pt.json\")",
-      "Bash(sed -n '446,453p' \"d:\\\\laragon\\\\www\\\\ProyectoVouchFE\\\\public\\\\i18n\\\\it.json\")"
+      "Bash(sed -n '446,453p' \"d:\\\\laragon\\\\www\\\\ProyectoVouchFE\\\\public\\\\i18n\\\\it.json\")",
+      "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('admin',{}\\).get\\('products',{}\\), indent=2\\)\\)\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

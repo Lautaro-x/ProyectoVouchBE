@@ -38,6 +38,8 @@ class IgdbService
         return $this->query('games',
             "search \"{$escaped}\";
             fields id,name,cover.url,first_release_date,platforms.name,genres.name;
+            where version_parent = null
+              & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
             limit 10;"
         );
     }
@@ -48,7 +50,7 @@ class IgdbService
             first_release_date,
             rating,rating_count,
             aggregated_rating,aggregated_rating_count,
-            hypes,follows,status,category,
+            hypes,follows,status,game_type,
             involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
             platforms.name,platforms.abbreviation,
             release_dates.date,release_dates.platform.id,
@@ -61,7 +63,7 @@ class IgdbService
             screenshots.url,
             age_ratings.category,age_ratings.rating,
             websites.category,websites.url,
-            external_games.uid,external_games.category";
+            external_games.uid,external_games.url";
     }
 
     public function find(int $igdbId): ?array
@@ -80,9 +82,28 @@ class IgdbService
             "fields {$this->fullFields()};
             where genres = ({$igdbGenreId})
               & aggregated_rating_count > 5
-              & cover != null;
+              & cover != null
+              & version_parent = null
+              & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
             sort aggregated_rating desc;
             limit {$limit};"
+        );
+    }
+
+    public function recentGames(int $hours = 48): array
+    {
+        $since = time() - ($hours * 3600);
+        $now   = time();
+
+        return $this->query('games',
+            "fields {$this->fullFields()};
+            where first_release_date >= {$since}
+              & first_release_date <= {$now}
+              & cover != null
+              & version_parent = null
+              & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
+            sort first_release_date desc;
+            limit 50;"
         );
     }
 

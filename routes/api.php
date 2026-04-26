@@ -57,6 +57,8 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('/igdb/search', [IgdbController::class, 'search']);
         Route::post('/igdb/import', [IgdbController::class, 'import']);
+        Route::post('/igdb/import-recent', [IgdbController::class, 'importRecent']);
+        Route::post('/products/{product}/sync-igdb', [IgdbController::class, 'syncProduct']);
 
         Route::apiResource('genres', Admin\GenreController::class)->except('show');
         Route::put('genres/{genre}/categories', [Admin\GenreController::class, 'syncCategories']);

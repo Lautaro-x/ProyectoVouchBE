@@ -21,9 +21,9 @@ class ProductController extends Controller
             $this->paginationParams($request, ['id', 'title', 'type'], 'title');
 
         $products = Product::with(['genres', 'gameDetails', 'platforms', 'score'])
-            ->when($request->search, fn($q) => $q->where('title', 'like', "%{$request->search}%"))
-            ->when($request->type, fn($q) => $q->where('type', $request->type))
-            ->when($request->genre_id, fn($q) => $q->whereHas('genres', fn($g) => $g->where('Genres.id', $request->genre_id)))
+            ->when($request->filled('search'), fn($q) => $q->where('title', 'like', "%{$request->input('search')}%"))
+            ->when($request->filled('type'), fn($q) => $q->where('type', $request->input('type')))
+            ->when($request->filled('genre_id'), fn($q) => $q->whereHas('genres', fn($g) => $g->where('Genres.id', $request->input('genre_id'))))
             ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
 
@@ -98,14 +98,16 @@ class ProductController extends Controller
     public function purchaseLinks(Request $request, Product $product): JsonResponse
     {
         $data = $request->validate([
-            'platforms'                => 'required|array',
-            'platforms.*.platform_id'  => 'required|exists:Platforms,id',
-            'platforms.*.purchase_url' => 'nullable|url|max:500',
+            'platforms'                  => 'required|array',
+            'platforms.*.platform_id'    => 'required|exists:Platforms,id',
+            'platforms.*.purchase_url'   => 'nullable|array',
+            'platforms.*.purchase_url.*' => 'nullable|url|max:500',
         ]);
 
         foreach ($data['platforms'] as $item) {
+            $links = array_filter($item['purchase_url'] ?? []);
             $product->platforms()->updateExistingPivot($item['platform_id'], [
-                'purchase_url' => $item['purchase_url'] ?? null,
+                'purchase_url' => $links ?: null,
             ]);
         }
 

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GameDetail;
+use App\Models\Product;
 use App\Services\IgdbService;
 use App\Services\ProductImportService;
 use Illuminate\Http\JsonResponse;
@@ -18,14 +20,25 @@ class IgdbController extends Controller
     {
         $request->validate(['q' => 'required|string|min:2']);
 
-        return response()->json($this->igdb->search($request->q));
+        $games     = $this->igdb->search($request->input('q'));
+        $importedIds = GameDetail::whereIn('igdb_id', array_column($games, 'id'))
+            ->pluck('igdb_id')
+            ->flip()
+            ->all();
+
+        $result = array_map(
+            fn($g) => array_merge($g, ['already_imported' => isset($importedIds[$g['id']])]),
+            $games
+        );
+
+        return response()->json($result);
     }
 
     public function import(Request $request): JsonResponse
     {
         $request->validate(['igdb_id' => 'required|integer']);
 
-        $game = $this->igdb->find($request->igdb_id);
+        $game = $this->igdb->find($request->input('igdb_id'));
 
         if (!$game) {
             return response()->json(['message' => 'Juego no encontrado en IGDB'], 404);
@@ -38,5 +51,50 @@ class IgdbController extends Controller
             $product->load('gameDetails', 'platforms', 'genres'),
             $status
         );
+    }
+
+    public function importRecent(): JsonResponse
+    {
+        $games   = $this->igdb->recentGames(48);
+        $results = ['imported' => [], 'skipped' => [], 'errors' => []];
+
+        foreach ($games as $game) {
+            if (GameDetail::where('igdb_id', $game['id'])->exists()) {
+                $results['skipped'][] = $game['name'];
+                continue;
+            }
+
+            try {
+                $product             = $this->importer->importGame($game);
+                $results['imported'][] = $product->title;
+            } catch (\Throwable) {
+                $results['errors'][] = $game['name'];
+            }
+        }
+
+        return response()->json($results);
+    }
+
+    public function syncProduct(Product $product): JsonResponse
+    {
+        $igdbId = $product->gameDetails?->igdb_id;
+
+        if (!$igdbId) {
+            return response()->json(['message' => 'El producto no tiene igdb_id'], 422);
+        }
+
+        $game = $this->igdb->find($igdbId);
+
+        if (!$game) {
+            return response()->json(['message' => 'Juego no encontrado en IGDB'], 404);
+        }
+
+        $updated = $this->importer->importGame($game);
+
+        return response()->json([
+            'imported' => [$updated->title],
+            'skipped'  => [],
+            'errors'   => [],
+        ]);
     }
 }

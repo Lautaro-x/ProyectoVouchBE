@@ -41,6 +41,8 @@ app/
 │       ├── AdminMiddleware.php
 │       └── CheckBanned.php
 ├── Models/
+│   ├── Pivots/
+│   │   └── ProductPlatformPivot.php
 │   ├── User.php
 │   ├── Genre.php
 │   ├── Category.php
@@ -188,17 +190,20 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 
 **Autenticación:** Twitch OAuth con Client Credentials. El token se cachea durante 50 días para evitar requests repetidos.
 
+**Nota sobre IGDB API v4:** El campo `category` (tipo de juego) fue renombrado a `game_type` en la API v4. El campo `external_games.category` fue eliminado. Todos los filtros y mapeos del proyecto usan la nomenclatura v4.
+
 **`IgdbService`** — métodos principales:
-- `search(string $query)` — busca juegos por nombre
-- `find(int $igdbId)` — obtiene un juego por ID
-- `topByGenre(int $igdbGenreId, int $limit)` — top juegos de un género
+- `search(string $query)` — busca juegos por nombre; filtra `version_parent = null` + `game_type ∈ {0,4,8,9}` para excluir DLCs, ediciones y mods
+- `find(int $igdbId)` — obtiene un juego por ID (sin filtro de game_type; es lookup directo)
+- `topByGenre(int $igdbGenreId, int $limit)` — top juegos de un género (filtra `version_parent = null` + game_type)
+- `recentGames(int $hours)` — juegos publicados en las últimas N horas (filtra game_type)
 - `coverUrl(array $cover, string $size)` — construye URL de portada (formato `t_cover_big`)
 
 **`ProductImportService`** — método `importGame(array $igdbGame): Product` (upsert):
 - Si el `igdb_id` **ya existe**: actualiza `description`, `cover_image` en Product y todos los campos de `GameDetail`. Devuelve el producto con `wasRecentlyCreated = false`.
 - Si **no existe**: crea `Product` + `GameDetail`. Devuelve el producto con `wasRecentlyCreated = true`.
-- En ambos casos sincroniza géneros y plataformas.
-- Lógica interna dividida en `buildDetailData()`, `syncGenres()` y `syncPlatforms()` para evitar duplicación entre create y update.
+- En ambos casos sincroniza géneros y plataformas con los enlaces de tienda correspondientes.
+- Lógica interna dividida en `buildDetailData()`, `buildStoreUrlMap()`, `resolvePlatformLinks()`, `syncGenres()` y `syncPlatforms()`.
 - `IgdbController` devuelve HTTP 201 (creado) o 200 (actualizado) según `wasRecentlyCreated`.
 - `igdb:import-top` muestra "✓ nuevo" o "↻ actualizado" por juego.
 
@@ -211,23 +216,44 @@ El Trust Score no se cachea porque es personal para cada usuario. Global y Pro s
 | `igdb_rating` / `igdb_rating_count` | `rating` / `rating_count` (escalado a 0–10) |
 | `aggregated_rating` / `aggregated_rating_count` | `aggregated_rating` / `aggregated_rating_count` (escalado a 0–10) |
 | `hypes`, `follows` | `hypes`, `follows` |
-| `status`, `category` | `status`, `category` (enteros, enum IGDB) |
+| `status`, `game_type` | `status`, `game_type` (enteros, enum IGDB v4) |
 | `franchise` | `franchises[0].name` |
 | `trailer_youtube_id` | `videos[0].video_id` |
 | `pegi_rating`, `esrb_rating` | `age_ratings` (category 2=PEGI, 1=ESRB) |
-| `gog_url`, `epic_url` | `external_games` (category 5=GOG, 26=Epic) |
 | `official_url` | `websites` (category 1=oficial) |
-| `steam` | `external_games` (category 1) → pivot `purchase_url` |
 | `game_modes` | `game_modes[].name` (JSON array) |
 | `themes` | `themes[].name` (JSON array, incluye "Indie") |
 | `player_perspectives` | `player_perspectives[].name` (JSON array) |
 | `screenshots` | `screenshots[].url` (hasta 10, tamaño `t_screenshot_big`) |
 
-**Endpoints admin:**
+**Links de tienda — pivote `Product_x_Platform.purchase_url` (JSON):**
+
+Los enlaces de compra se almacenan como objeto JSON en el pivote plataforma-producto, no en `GameDetail`. El campo `purchase_url` es de tipo `JSON` y contiene un objeto con claves de tienda:
+
+```json
+{ "steam": "https://...", "gog": "https://...", "epic": "https://..." }
 ```
-GET  /api/admin/igdb/search?q={query}   → IgdbGame[]
-POST /api/admin/igdb/import             Body: { igdb_id: number } → Product
+
+Fuente IGDB: `external_games[].url`. La tienda se detecta por dominio de la URL (no por el campo `category` de IGDB, que fue eliminado en la API v4): `store.steampowered.com` → steam, `gog.com` → gog, `epicgames.com` → epic, `xbox.com`/`microsoft.com/store` → xbox, `nintendo.com` → eshop, `store.playstation.com` → ps_store.
+
+Asignación por plataforma:
+- **PC** (tipo `pc`) → `steam`, `gog`, `epic`
+- **PlayStation** (nombre contiene "PlayStation") → `ps_store`
+- **Xbox** (nombre contiene "xbox") → `xbox`
+- **Switch** (nombre contiene "Switch") → `eshop`
+
+Migraciones relevantes: `2026_04_25_000006` (drop `gog_url`/`epic_url` de `GameDetails`), `2026_04_25_000007` (convierte `purchase_url` varchar → JSON en `Product_x_Platform`).
+
+**Endpoints admin IGDB:**
 ```
+GET  /api/admin/igdb/search?q={query}     → IgdbGame[]
+POST /api/admin/igdb/import               Body: { igdb_id: number } → Product
+POST /api/admin/igdb/import-recent        → { imported: string[], skipped: string[], errors: string[] }
+POST /api/admin/products/{id}/sync-igdb   → { imported: string[], skipped: string[], errors: string[] }
+```
+
+- **`import-recent`** — importa todos los juegos publicados en las últimas 48 horas (filtro: `version_parent = null`, `game_type` 0/4/8/9 para excluir DLCs/mods/ediciones, con portada). Omite los que ya existen en BD. Devuelve reporte de importados/omitidos/errores. El endpoint de búsqueda enriquece los resultados con `already_imported: true` para los juegos ya en BD (detectado vía `GameDetail.igdb_id`).
+- **`sync-igdb`** — re-sincroniza un producto existente desde IGDB usando su `igdb_id`. Actualiza portada, descripción, plataformas y links de tienda.
 
 **Comando artisan:**
 ```bash
@@ -264,12 +290,13 @@ Todos los endpoints están bajo `/api/admin` y requieren autenticación Sanctum 
 
 **`PUT /api/admin/products/{id}/purchase-links`**
 
-Actualiza el campo `purchase_url` en la pivot `Product_x_Platform` para cada plataforma asociada al producto. Body:
+Actualiza el campo `purchase_url` (JSON) en la pivot `Product_x_Platform` para cada plataforma asociada al producto. Body:
 ```json
 {
   "platforms": [
-    { "platform_id": 1, "purchase_url": "https://store.steampowered.com/app/292030/" },
-    { "platform_id": 3, "purchase_url": null }
+    { "platform_id": 1, "purchase_url": { "steam": "https://store.steampowered.com/app/292030/", "gog": "https://www.gog.com/en/game/witcher3" } },
+    { "platform_id": 3, "purchase_url": { "ps_store": "https://store.playstation.com/..." } },
+    { "platform_id": 5, "purchase_url": null }
   ]
 }
 ```
@@ -611,8 +638,8 @@ Página pública sin header ni breadcrumb que muestra el perfil de cualquier usu
 - [x] Tests PHPUnit — cubrir al menos `ScoringService` y endpoints críticos
 - [x] SSR en páginas públicas (detalle de producto, cards) para indexación por buscadores
 - [x] Opción "solo verificados" y "solo prensa" en encuestas y avisos (campo `audience`: `all | verified | press`)
-- [ ] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
-- [ ] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
+- [x] Método de petición formal de badge verificado (formulario/flujo para que el usuario lo solicite)
+- [x] Automatizar links a tiendas de compra (Steam, PS Store, Xbox, etc. desde metadatos de IGDB)
 - [x] Nota de mis seguidores — igual que Trust Score pero calculado desde seguidores en vez de seguidos (requiere badge `verificado` + consentimiento explícito)
 - [ ] Creación de estilos propios — identidad visual de la plataforma (tipografía, paleta, personalidad)
 - [ ] Investigar AdSense / Carbon Ads para monetización
@@ -1153,6 +1180,8 @@ Ver "Convención de nombres → Deuda técnica" en la sección de Base de datos.
 
 ## Novedades recientes
 
+- IGDB API v4: campo `category` renombrado a `game_type`; `external_games.category` eliminado → detección de tienda por dominio de URL en `buildStoreUrlMap()`; filtro `version_parent = null` + `game_type ∈ {0,4,8,9}` en `search()`, `topByGenre()` y `recentGames()` para excluir DLCs/mods/ediciones; búsqueda enriquecida con `already_imported`; `ProductPlatformPivot` (clase Pivot personalizada) resuelve cast de `purchase_url` JSON que `withCasts()` no serializa correctamente en el pivote.
+- Links de tienda como JSON por plataforma: `purchase_url` en `Product_x_Platform` migrado de varchar a JSON; `gog_url`/`epic_url` eliminados de `GameDetails`; importación IGDB mapea automáticamente Steam/GOG/Epic/PlayStation/Xbox/eShop al pivote correspondiente; endpoint `import-recent` importa juegos de las últimas 48h; `sync-igdb` actualiza un producto existente desde IGDB; panel admin muestra inputs por tienda en el diálogo de links y botón Sync IGDB (icono SVG) por producto; detalle de producto renderiza un botón de compra por tienda.
 - Auditoría backend batch 3: SoftDeletes en User/Product/Review (3 migraciones); cache de `BadgeService::getProgress()` 5 min con invalidación automática; cache de listas admin genres/categories 1h; pre-carga única de followingIds/followerIds en `ProductController::show()`; Form Requests para store/update review y update profile; `$request->input()` en todos los controllers admin; deuda de naming de tablas documentada.
 - Hardening de seguridad fase 2: `HttpsUrl` rule rechaza URLs no-https en avatar/card backgrounds/social links/press_url; throttle añadido a 8 rutas sin protección (perfil, reseña, consents, admin ban/role/verify); `SecurityHeaders` middleware inyecta `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy` en todas las respuestas API.
 - Performance: `ProductController::relevant()` usa ORDER BY + LIMIT en SQL en lugar de cargar todos los productos en PHP; resultado cacheado 10 min con invalidación automática al recalcular scores. `ScoringService::recalculateProductScores` sustituye el `->with('user')->get()->filter()` por `averageByRole()` con JOIN en SQL.

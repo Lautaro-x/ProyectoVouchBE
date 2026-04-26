@@ -49,7 +49,6 @@ class ProductImportService
     {
         [$developer, $publisher] = $this->resolveCompanies($game['involved_companies'] ?? []);
         [$pegiRating, $esrbRating] = $this->resolveAgeRatings($game['age_ratings'] ?? []);
-        [$gogUrl, $epicUrl] = $this->resolveStoreUrls($game['external_games'] ?? []);
 
         return [
             'developer'               => $developer,
@@ -62,13 +61,11 @@ class ProductImportService
             'hypes'                   => $game['hypes'] ?? null,
             'follows'                 => $game['follows'] ?? null,
             'status'                  => $game['status'] ?? null,
-            'category'                => $game['category'] ?? null,
+            'category'                => $game['game_type'] ?? null,
             'franchise'               => $game['franchises'][0]['name'] ?? null,
             'trailer_youtube_id'      => $this->resolveTrailer($game['videos'] ?? []),
             'pegi_rating'             => $pegiRating,
             'esrb_rating'             => $esrbRating,
-            'gog_url'                 => $gogUrl,
-            'epic_url'                => $epicUrl,
             'official_url'            => $this->resolveOfficialUrl($game['websites'] ?? []),
             'game_modes'              => collect($game['game_modes'] ?? [])->pluck('name')->values()->all() ?: null,
             'themes'                  => collect($game['themes'] ?? [])->pluck('name')->values()->all() ?: null,
@@ -86,7 +83,7 @@ class ProductImportService
 
     private function syncPlatforms(Product $product, array $game): void
     {
-        $steamUrl     = $this->resolveSteamUrl($game['external_games'] ?? []);
+        $storeMap     = $this->buildStoreUrlMap($game['external_games'] ?? []);
         $releaseDates = collect($game['release_dates'] ?? [])->keyBy('platform.id');
 
         foreach ($game['platforms'] ?? [] as $igdbPlatform) {
@@ -102,10 +99,12 @@ class ProductImportService
                 ? date('Y-m-d', $releaseEntry['date'])
                 : (isset($game['first_release_date']) ? date('Y-m-d', $game['first_release_date']) : null);
 
+            $links = $this->resolvePlatformLinks($igdbPlatform['name'], $platformType, $storeMap);
+
             $product->platforms()->syncWithoutDetaching([
                 $platform->id => [
                     'release_date' => $releaseDate,
-                    'purchase_url' => $platformType === 'pc' ? $steamUrl : null,
+                    'purchase_url' => $links,
                 ],
             ]);
         }
@@ -136,36 +135,46 @@ class ProductImportService
         return [$developer, $publisher];
     }
 
-    private function resolveSteamUrl(array $externalGames): ?string
+    private function buildStoreUrlMap(array $externalGames): array
     {
+        $map = [];
+
         foreach ($externalGames as $ext) {
-            if (($ext['category'] ?? null) === 1 && !empty($ext['uid'])) {
-                return "https://store.steampowered.com/app/{$ext['uid']}/";
-            }
+            $url = $ext['url'] ?? null;
+            if (!$url) continue;
+
+            match (true) {
+                str_contains($url, 'store.steampowered.com')  => $map['steam']    ??= $url,
+                str_contains($url, 'gog.com')                 => $map['gog']      ??= $url,
+                str_contains($url, 'epicgames.com')           => $map['epic']     ??= $url,
+                str_contains($url, 'xbox.com') ||
+                str_contains($url, 'microsoft.com/store')     => $map['xbox']     ??= $url,
+                str_contains($url, 'nintendo.com')            => $map['eshop']    ??= $url,
+                str_contains($url, 'store.playstation.com')   => $map['ps_store'] ??= $url,
+                default                                       => null,
+            };
         }
 
-        return null;
+        return array_filter($map);
     }
 
-    private function resolveStoreUrls(array $externalGames): array
+    private function resolvePlatformLinks(string $platformName, string $platformType, array $storeMap): ?array
     {
-        $gog  = null;
-        $epic = null;
+        $name = strtolower($platformName);
 
-        foreach ($externalGames as $ext) {
-            $cat = $ext['category'] ?? null;
-            $uid = $ext['uid'] ?? null;
+        $keys = match (true) {
+            str_contains($name, 'playstation') => ['ps_store'],
+            str_contains($name, 'xbox')        => ['xbox'],
+            str_contains($name, 'switch')      => ['eshop'],
+            $platformType === 'pc'             => ['steam', 'gog', 'epic'],
+            default                            => [],
+        };
 
-            if (!$uid) continue;
+        $links = array_filter(
+            array_intersect_key($storeMap, array_flip($keys))
+        );
 
-            if ($cat === 5 && !$gog) {
-                $gog = "https://www.gog.com/en/game/{$uid}";
-            } elseif ($cat === 26 && !$epic) {
-                $epic = "https://store.epicgames.com/p/{$uid}";
-            }
-        }
-
-        return [$gog, $epic];
+        return $links ?: null;
     }
 
     private function resolveOfficialUrl(array $websites): ?string

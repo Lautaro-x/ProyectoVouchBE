@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Pivots\ProductPlatformPivot;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -62,6 +63,7 @@ class Product extends Model
     public function platforms(): BelongsToMany
     {
         return $this->belongsToMany(Platform::class, 'Product_x_Platform')
+            ->using(ProductPlatformPivot::class)
             ->withPivot('release_date', 'purchase_url');
     }
 

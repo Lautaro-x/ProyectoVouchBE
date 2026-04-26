@@ -19,7 +19,7 @@ class GameDetail extends Model
         'aggregated_rating', 'aggregated_rating_count',
         'hypes', 'follows', 'status', 'category',
         'franchise', 'trailer_youtube_id', 'pegi_rating', 'esrb_rating',
-        'gog_url', 'epic_url', 'official_url',
+        'official_url',
         'game_modes', 'themes', 'player_perspectives', 'screenshots',
     ];
 
