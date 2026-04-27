@@ -24,6 +24,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/games', [ProductController::class, 'games']);
+Route::get('/genres', [ProductController::class, 'genres']);
 Route::get('/public/card/{user}', [PublicCardController::class, 'show']);
 Route::get('/products/relevant', [ProductController::class, 'relevant']);
 Route::get('/products/trailers', [ProductController::class, 'trailers']);

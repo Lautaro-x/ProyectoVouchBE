@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\ScoringService;
 use App\Models\CustomTrailerItem;
 use App\Models\CustomTrailerSection;
+use App\Models\Genre;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,14 @@ use Illuminate\Support\Facades\DB;
 class ProductController extends Controller
 {
     public function __construct(private ScoringService $scoring) {}
+
+    public function genres(): JsonResponse
+    {
+        $genres = Cache::remember('public_genres', 3600, fn() =>
+            Genre::orderBy('name->en')->get(['id', 'name', 'slug'])
+        );
+        return response()->json($genres);
+    }
 
     public function games(Request $request): JsonResponse
     {
@@ -35,13 +44,13 @@ class ProductController extends Controller
                     $type  = $request->input('filter_type');
                     $value = $request->input('filter_value');
                     return match ($type) {
-                        'genre'              => $q->whereHas('genres', fn ($g) => $g->where('id', $value)),
-                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->where('developer', $value)),
-                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->where('publisher', $value)),
-                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->where('franchise', $value)),
-                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('themes', $value)),
-                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('game_modes', $value)),
-                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereJsonContains('player_perspectives', $value)),
+                        'genre'              => $q->whereHas('genres', fn ($g) => $g->where('slug', $value)),
+                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(developer, ' ', '-')) = ?", [$value])),
+                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(publisher, ' ', '-')) = ?", [$value])),
+                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(franchise, ' ', '-')) = ?", [$value])),
+                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(themes), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
+                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(game_modes), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
+                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(player_perspectives), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
                         default              => $q,
                     };
                 }
@@ -243,6 +252,7 @@ class ProductController extends Controller
             'genres'      => $product->genres->map(fn($g) => [
                 'id'   => $g->id,
                 'name' => $g->getTranslations('name'),
+                'slug' => $g->slug,
             ]),
             'game_details' => $product->gameDetails ? [
                 'igdb_id'                 => $product->gameDetails->igdb_id,
