@@ -110,6 +110,22 @@ class IgdbService
         );
     }
 
+    public function upcomingGames(): array
+    {
+        $now = time();
+
+        return $this->query('games',
+            "fields name, cover.url, first_release_date, videos.video_id,
+                    involved_companies.company.name, involved_companies.developer,
+                    hypes, websites.url, websites.category;
+            where first_release_date > {$now}
+              & (status = null | status = 2 | status = 3)
+              & (category = null | category = 0);
+            sort hypes desc;
+            limit 50;"
+        );
+    }
+
     public function coverUrl(?array $cover): ?string
     {
         if (!$cover || !isset($cover['url'])) {

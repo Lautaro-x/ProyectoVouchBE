@@ -24,6 +24,8 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/games', [ProductController::class, 'games']);
+Route::get('/discover', [IgdbController::class, 'discover'])->middleware('throttle:5,1');
+Route::post('/discover/import', [IgdbController::class, 'discoverImport'])->middleware('throttle:10,1');
 Route::get('/genres', [ProductController::class, 'genres']);
 Route::get('/public/card/{user}', [PublicCardController::class, 'show']);
 Route::get('/products/relevant', [ProductController::class, 'relevant']);
@@ -61,6 +63,7 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
         Route::post('/igdb/import', [IgdbController::class, 'import']);
         Route::post('/igdb/import-recent', [IgdbController::class, 'importRecent']);
         Route::post('/igdb/sync-early-access', [IgdbController::class, 'syncEarlyAccess']);
+        Route::post('/igdb/sync-upcoming', [IgdbController::class, 'syncUpcoming']);
         Route::post('/products/{product}/sync-igdb', [IgdbController::class, 'syncProduct']);
 
         Route::apiResource('genres', Admin\GenreController::class)->except('show');
