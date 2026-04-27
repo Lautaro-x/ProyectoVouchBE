@@ -23,7 +23,7 @@ class ProductImportService
                 'description' => $game['summary'] ?? null,
                 'cover_image' => $this->igdb->coverUrl($game['cover'] ?? null),
             ]);
-            $existingDetail->update($detailData);
+            $existingDetail->update(array_merge($detailData, ['igdb_synced_at' => now()]));
         } else {
             $product = Product::create([
                 'type'        => 'game',

@@ -75,6 +75,38 @@ class IgdbController extends Controller
         return response()->json($results);
     }
 
+    public function syncEarlyAccess(): JsonResponse
+    {
+        $details = GameDetail::with('product')
+            ->where('status', 4)
+            ->where(fn($q) => $q
+                ->whereNull('igdb_synced_at')
+                ->orWhere('igdb_synced_at', '<', now()->subWeek())
+            )
+            ->limit(1000)
+            ->get();
+
+        $results = ['imported' => [], 'skipped' => [], 'errors' => []];
+
+        foreach ($details as $detail) {
+            try {
+                $game = $this->igdb->find($detail->igdb_id);
+
+                if (!$game) {
+                    $results['skipped'][] = $detail->product->title;
+                    continue;
+                }
+
+                $this->importer->importGame($game);
+                $results['imported'][] = $detail->product->title;
+            } catch (\Throwable) {
+                $results['errors'][] = $detail->product->title;
+            }
+        }
+
+        return response()->json($results);
+    }
+
     public function syncProduct(Product $product): JsonResponse
     {
         $igdbId = $product->gameDetails?->igdb_id;

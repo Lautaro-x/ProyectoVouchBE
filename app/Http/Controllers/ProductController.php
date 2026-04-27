@@ -45,12 +45,12 @@ class ProductController extends Controller
                     $value = $request->input('filter_value');
                     return match ($type) {
                         'genre'              => $q->whereHas('genres', fn ($g) => $g->where('slug', $value)),
-                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(developer, ' ', '-')) = ?", [$value])),
-                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(publisher, ' ', '-')) = ?", [$value])),
-                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("LOWER(REPLACE(franchise, ' ', '-')) = ?", [$value])),
-                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(themes), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
-                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(game_modes), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
-                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(player_perspectives), 'one', ?) IS NOT NULL", [str_replace('-', ' ', $value)])),
+                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->where('developer', str_replace('-', ' ', $value))),
+                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->where('publisher',  str_replace('-', ' ', $value))),
+                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->where('franchise',  str_replace('-', ' ', $value))),
+                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(themes), 'one', ?) IS NOT NULL",              [strtolower(str_replace('-', ' ', $value))])),
+                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(game_modes), 'one', ?) IS NOT NULL",          [strtolower(str_replace('-', ' ', $value))])),
+                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(player_perspectives), 'one', ?) IS NOT NULL", [strtolower(str_replace('-', ' ', $value))])),
                         default              => $q,
                     };
                 }

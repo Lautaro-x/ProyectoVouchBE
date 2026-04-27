@@ -39,6 +39,7 @@ class IgdbService
             "search \"{$escaped}\";
             fields id,name,cover.url,first_release_date,platforms.name,genres.name;
             where version_parent = null
+              & (status = null | status = 0 | status = 4)
               & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
             limit 10;"
         );
@@ -84,6 +85,7 @@ class IgdbService
               & aggregated_rating_count > 5
               & cover != null
               & version_parent = null
+              & (status = null | status = 0 | status = 4)
               & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
             sort aggregated_rating desc;
             limit {$limit};"
@@ -101,6 +103,7 @@ class IgdbService
               & first_release_date <= {$now}
               & cover != null
               & version_parent = null
+              & (status = null | status = 0 | status = 4)
               & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
             sort first_release_date desc;
             limit 50;"
