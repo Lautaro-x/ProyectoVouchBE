@@ -26,6 +26,7 @@ Route::prefix('auth')->group(function () {
 Route::get('/games', [ProductController::class, 'games']);
 Route::get('/public/card/{user}', [PublicCardController::class, 'show']);
 Route::get('/products/relevant', [ProductController::class, 'relevant']);
+Route::get('/products/trailers', [ProductController::class, 'trailers']);
 Route::get('/products/{id}/review-form', [ProductController::class, 'reviewForm']);
 Route::get('/products/{product}/reviews', [ProductReviewController::class, 'index']);
 Route::get('/products/{type}/{slug}', [ProductController::class, 'show']);
@@ -75,6 +76,11 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
         Route::apiResource('surveys', Admin\SurveyController::class);
         Route::get('surveys/{survey}/results', [Admin\SurveyController::class, 'results']);
         Route::apiResource('announcements', Admin\AnnouncementController::class);
+
+        Route::get('trailer-section', [Admin\CustomTrailerController::class, 'show']);
+        Route::put('trailer-section', [Admin\CustomTrailerController::class, 'update'])->middleware('throttle:20,1');
+        Route::post('trailer-section/items', [Admin\CustomTrailerController::class, 'storeItem'])->middleware('throttle:30,1');
+        Route::delete('trailer-section/items/{customTrailerItem}', [Admin\CustomTrailerController::class, 'destroyItem'])->middleware('throttle:30,1');
 
         Route::get('verify-requests', [Admin\VerificationRequestController::class, 'index']);
         Route::post('verify-requests/{verificationRequest}/approve', [Admin\VerificationRequestController::class, 'approve'])->middleware('throttle:20,1');

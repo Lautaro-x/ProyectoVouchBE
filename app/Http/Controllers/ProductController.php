@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\ScoringService;
+use App\Models\CustomTrailerItem;
+use App\Models\CustomTrailerSection;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,7 +92,7 @@ class ProductController extends Controller
                     $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) >= 8.0')
                 )
                 ->orderByDesc('latest_release')
-                ->limit(6)
+                ->limit(10)
                 ->get()
         );
 
@@ -136,6 +138,53 @@ class ProductController extends Controller
             ->get()
             ->unique('product_id')
             ->keyBy('product_id');
+    }
+
+    public function trailers(): JsonResponse
+    {
+        $section = CustomTrailerSection::instance();
+
+        if ($section->is_active) {
+            $items = CustomTrailerItem::orderBy('sort_order')->orderBy('id')->get();
+            return response()->json([
+                'section_title' => $section->title,
+                'items'         => $items->map(fn($item) => [
+                    'id'                 => $item->id,
+                    'title'              => $item->name,
+                    'slug'               => '',
+                    'type'               => '',
+                    'trailer_youtube_id' => $this->extractYoutubeId($item->youtube_url),
+                ]),
+            ]);
+        }
+
+        $items = Product::with('gameDetails')
+            ->whereHas('gameDetails', fn($q) => $q->whereNotNull('trailer_youtube_id'))
+            ->orderByRaw('COALESCE((SELECT MAX(release_date) FROM `Product_x_Platform` WHERE product_id = Products.id), Products.created_at) DESC')
+            ->limit(20)
+            ->get()
+            ->map(fn(Product $p) => [
+                'id'                 => $p->id,
+                'title'              => $p->title,
+                'slug'               => $p->slug,
+                'type'               => $p->type,
+                'trailer_youtube_id' => $p->gameDetails->trailer_youtube_id,
+            ]);
+
+        return response()->json([
+            'section_title' => null,
+            'items'         => $items,
+        ]);
+    }
+
+    private function extractYoutubeId(string $url): string
+    {
+        preg_match(
+            '/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/',
+            $url,
+            $matches
+        );
+        return $matches[1] ?? $url;
     }
 
     public function reviewForm(int $id): JsonResponse
