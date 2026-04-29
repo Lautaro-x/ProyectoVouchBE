@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\IgdbController;
+use App\Http\Controllers\UpcomingGameController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\FollowController;
@@ -24,6 +25,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/games', [ProductController::class, 'games']);
+Route::get('/upcoming-games', [UpcomingGameController::class, 'index']);
 Route::get('/discover', [IgdbController::class, 'discover'])->middleware('throttle:5,1');
 Route::post('/discover/import', [IgdbController::class, 'discoverImport'])->middleware('throttle:10,1');
 Route::get('/genres', [ProductController::class, 'genres']);

@@ -170,6 +170,8 @@ class IgdbController extends Controller
             }
         }
 
+        Cache::forget('upcoming_games_public');
+
         return response()->json([
             'imported' => ["Se importaron {$imported} juegos upcoming"],
             'skipped'  => [],
