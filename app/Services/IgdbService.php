@@ -9,7 +9,7 @@ class IgdbService
 {
     private function token(): string
     {
-        return Cache::remember('igdb_access_token', 50 * 24 * 3600, function () {
+        $token = Cache::remember('igdb_access_token', 50 * 24 * 3600, function () {
             $response = Http::post('https://id.twitch.tv/oauth2/token', [
                 'client_id'     => config('services.igdb.client_id'),
                 'client_secret' => config('services.igdb.client_secret'),
@@ -18,6 +18,13 @@ class IgdbService
 
             return $response->json('access_token');
         });
+
+        if (!is_string($token)) {
+            Cache::forget('igdb_access_token');
+            throw new \RuntimeException('IGDB: failed to obtain Twitch access token. Check TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env.');
+        }
+
+        return $token;
     }
 
     private function query(string $endpoint, string $body): array
@@ -33,16 +40,22 @@ class IgdbService
 
     public function search(string $name): array
     {
-        $escaped = addslashes($name);
+        $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $name);
 
-        return $this->query('games',
+        $results = $this->query('games',
             "search \"{$escaped}\";
             fields id,name,cover.url,first_release_date,platforms.name,genres.name;
             where version_parent = null
               & (status = null | status = 0 | status = 4)
               & (game_type = 0 | game_type = 4 | game_type = 8 | game_type = 9);
-            limit 10;"
+            limit 20;"
         );
+
+        usort($results, fn($a, $b) =>
+            ($b['first_release_date'] ?? 0) <=> ($a['first_release_date'] ?? 0)
+        );
+
+        return $results;
     }
 
     private function fullFields(): string

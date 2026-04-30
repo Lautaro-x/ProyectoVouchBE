@@ -13,13 +13,15 @@ class AnnouncementController extends Controller
 
     public function active(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $now  = now();
+        $user          = $request->user();
+        $now           = now();
+        $userAudiences = $this->resolveAudiences($user);
 
         $announcements = Announcement::where('starts_at', '<=', $now)
             ->where('ends_at', '>=', $now)
+            ->whereIn('audience', $userAudiences)
             ->get()
-            ->filter(fn($a) => $a->hasAllTranslations() && $this->userMatchesAudience($user, $a->audience))
+            ->filter(fn($a) => $a->hasAllTranslations())
             ->values()
             ->map(fn($a) => [
                 'id'       => $a->id,

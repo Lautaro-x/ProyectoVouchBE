@@ -27,23 +27,7 @@ class AnnouncementController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'title'       => 'required|array',
-            'title.es'    => 'required|string|max:255',
-            'title.en'    => 'required|string|max:255',
-            'title.fr'    => 'required|string|max:255',
-            'title.pt'    => 'required|string|max:255',
-            'title.it'    => 'required|string|max:255',
-            'body'        => 'required|array',
-            'body.es'     => 'required|string',
-            'body.en'     => 'required|string',
-            'body.fr'     => 'required|string',
-            'body.pt'     => 'required|string',
-            'body.it'     => 'required|string',
-            'starts_at'   => 'required|date',
-            'ends_at'     => 'required|date|after:starts_at',
-            'audience'    => 'required|in:all,verified,press',
-        ]);
+        $data = $request->validate($this->announcementRules());
 
         $announcement = Announcement::create($data);
 
@@ -57,23 +41,7 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, Announcement $announcement): JsonResponse
     {
-        $data = $request->validate([
-            'title'       => 'required|array',
-            'title.es'    => 'required|string|max:255',
-            'title.en'    => 'required|string|max:255',
-            'title.fr'    => 'required|string|max:255',
-            'title.pt'    => 'required|string|max:255',
-            'title.it'    => 'required|string|max:255',
-            'body'        => 'required|array',
-            'body.es'     => 'required|string',
-            'body.en'     => 'required|string',
-            'body.fr'     => 'required|string',
-            'body.pt'     => 'required|string',
-            'body.it'     => 'required|string',
-            'starts_at'   => 'required|date',
-            'ends_at'     => 'required|date|after:starts_at',
-            'audience'    => 'required|in:all,verified,press',
-        ]);
+        $data = $request->validate($this->announcementRules());
 
         $announcement->update($data);
 
@@ -84,6 +52,27 @@ class AnnouncementController extends Controller
     {
         $announcement->delete();
         return response()->json(null, 204);
+    }
+
+    private function announcementRules(): array
+    {
+        return [
+            'title'     => 'required|array',
+            'title.es'  => 'required|string|max:255',
+            'title.en'  => 'required|string|max:255',
+            'title.fr'  => 'required|string|max:255',
+            'title.pt'  => 'required|string|max:255',
+            'title.it'  => 'required|string|max:255',
+            'body'      => 'required|array',
+            'body.es'   => 'required|string',
+            'body.en'   => 'required|string',
+            'body.fr'   => 'required|string',
+            'body.pt'   => 'required|string',
+            'body.it'   => 'required|string',
+            'starts_at' => 'required|date',
+            'ends_at'   => 'required|date|after:starts_at',
+            'audience'  => 'required|in:all,verified,press',
+        ];
     }
 
     private function format(Announcement $a): array

@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/games', [ProductController::class, 'games']);
+Route::get('/games/featured', [ProductController::class, 'featuredGame']);
 Route::get('/upcoming-games', [UpcomingGameController::class, 'index']);
 Route::get('/discover', [IgdbController::class, 'discover'])->middleware('throttle:5,1');
 Route::post('/discover/import', [IgdbController::class, 'discoverImport'])->middleware('throttle:10,1');

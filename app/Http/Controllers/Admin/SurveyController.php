@@ -30,29 +30,7 @@ class SurveyController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'title'        => 'required|array',
-            'title.es'     => 'required|string|max:255',
-            'title.en'     => 'required|string|max:255',
-            'title.fr'     => 'required|string|max:255',
-            'title.pt'     => 'required|string|max:255',
-            'title.it'     => 'required|string|max:255',
-            'question'     => 'required|array',
-            'question.es'  => 'required|string',
-            'question.en'  => 'required|string',
-            'question.fr'  => 'required|string',
-            'question.pt'  => 'required|string',
-            'question.it'  => 'required|string',
-            'starts_at'    => 'required|date',
-            'ends_at'      => 'required|date|after:starts_at',
-            'audience'     => 'required|in:all,verified,press',
-            'options'      => 'required|array|min:2',
-            'options.*.es' => 'required|string|max:255',
-            'options.*.en' => 'required|string|max:255',
-            'options.*.fr' => 'required|string|max:255',
-            'options.*.pt' => 'required|string|max:255',
-            'options.*.it' => 'required|string|max:255',
-        ]);
+        $data = $request->validate($this->surveyRules());
 
         $survey = Survey::create([
             'title'     => $data['title'],
@@ -77,29 +55,7 @@ class SurveyController extends Controller
 
     public function update(Request $request, Survey $survey): JsonResponse
     {
-        $data = $request->validate([
-            'title'        => 'required|array',
-            'title.es'     => 'required|string|max:255',
-            'title.en'     => 'required|string|max:255',
-            'title.fr'     => 'required|string|max:255',
-            'title.pt'     => 'required|string|max:255',
-            'title.it'     => 'required|string|max:255',
-            'question'     => 'required|array',
-            'question.es'  => 'required|string',
-            'question.en'  => 'required|string',
-            'question.fr'  => 'required|string',
-            'question.pt'  => 'required|string',
-            'question.it'  => 'required|string',
-            'starts_at'    => 'required|date',
-            'ends_at'      => 'required|date|after:starts_at',
-            'audience'     => 'required|in:all,verified,press',
-            'options'      => 'required|array|min:2',
-            'options.*.es' => 'required|string|max:255',
-            'options.*.en' => 'required|string|max:255',
-            'options.*.fr' => 'required|string|max:255',
-            'options.*.pt' => 'required|string|max:255',
-            'options.*.it' => 'required|string|max:255',
-        ]);
+        $data = $request->validate($this->surveyRules());
 
         $survey->update([
             'title'     => $data['title'],
@@ -137,6 +93,33 @@ class SurveyController extends Controller
     {
         $survey->delete();
         return response()->json(null, 204);
+    }
+
+    private function surveyRules(): array
+    {
+        return [
+            'title'        => 'required|array',
+            'title.es'     => 'required|string|max:255',
+            'title.en'     => 'required|string|max:255',
+            'title.fr'     => 'required|string|max:255',
+            'title.pt'     => 'required|string|max:255',
+            'title.it'     => 'required|string|max:255',
+            'question'     => 'required|array',
+            'question.es'  => 'required|string',
+            'question.en'  => 'required|string',
+            'question.fr'  => 'required|string',
+            'question.pt'  => 'required|string',
+            'question.it'  => 'required|string',
+            'starts_at'    => 'required|date',
+            'ends_at'      => 'required|date|after:starts_at',
+            'audience'     => 'required|in:all,verified,press',
+            'options'      => 'required|array|min:2',
+            'options.*.es' => 'required|string|max:255',
+            'options.*.en' => 'required|string|max:255',
+            'options.*.fr' => 'required|string|max:255',
+            'options.*.pt' => 'required|string|max:255',
+            'options.*.it' => 'required|string|max:255',
+        ];
     }
 
     private function formatSurvey(Survey $survey): array

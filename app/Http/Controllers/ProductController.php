@@ -7,6 +7,7 @@ use App\Models\CustomTrailerItem;
 use App\Models\CustomTrailerSection;
 use App\Models\Genre;
 use App\Models\Product;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -40,20 +41,7 @@ class ProductController extends Controller
             )
             ->when(
                 $request->filled('filter_type') && $request->filled('filter_value'),
-                function ($q) use ($request) {
-                    $type  = $request->input('filter_type');
-                    $value = $request->input('filter_value');
-                    return match ($type) {
-                        'genre'              => $q->whereHas('genres', fn ($g) => $g->where('slug', $value)),
-                        'developer'          => $q->whereHas('gameDetails', fn ($g) => $g->where('developer', str_replace('-', ' ', $value))),
-                        'publisher'          => $q->whereHas('gameDetails', fn ($g) => $g->where('publisher',  str_replace('-', ' ', $value))),
-                        'franchise'          => $q->whereHas('gameDetails', fn ($g) => $g->where('franchise',  str_replace('-', ' ', $value))),
-                        'theme'              => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(themes), 'one', ?) IS NOT NULL",              [strtolower(str_replace('-', ' ', $value))])),
-                        'game_mode'          => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(game_modes), 'one', ?) IS NOT NULL",          [strtolower(str_replace('-', ' ', $value))])),
-                        'player_perspective' => $q->whereHas('gameDetails', fn ($g) => $g->whereRaw("JSON_SEARCH(LOWER(player_perspectives), 'one', ?) IS NOT NULL", [strtolower(str_replace('-', ' ', $value))])),
-                        default              => $q,
-                    };
-                }
+                fn($q) => $this->applyGameFilter($q, $request->input('filter_type'), $request->input('filter_value'))
             )
             ->orderByDesc('latest_release')
             ->paginate(12);
@@ -128,6 +116,55 @@ class ProductController extends Controller
                 ]
             ))->values()
         );
+    }
+
+    public function featuredGame(Request $request): JsonResponse
+    {
+        $game = Product::with(['score', 'gameDetails'])
+            ->addSelect([
+                'Products.*',
+                'best_score' => DB::table('ProductScores')
+                    ->selectRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0))')
+                    ->whereColumn('product_id', 'Products.id'),
+            ])
+            ->where('Products.type', 'game')
+            ->when(
+                $request->filled('filter_type') && $request->filled('filter_value'),
+                fn($q) => $this->applyGameFilter($q, $request->input('filter_type'), $request->input('filter_value'))
+            )
+            ->whereHas('score', fn($q) => $q->whereRaw('GREATEST(COALESCE(global_score, 0), COALESCE(pro_score, 0)) > 0'))
+            ->orderByDesc('best_score')
+            ->first();
+
+        if (!$game) return response()->json(null);
+
+        $global = $game->score?->global_score;
+        $pro    = $game->score?->pro_score;
+        $best   = max($global ?? 0, $pro ?? 0);
+
+        return response()->json([
+            'title'              => $game->title,
+            'slug'               => $game->slug,
+            'type'               => $game->type,
+            'cover_image'        => $game->cover_image,
+            'developer'          => $game->gameDetails?->developer,
+            'letter_grade'       => $this->scoring->calculateLetterGrade($best),
+            'trailer_youtube_id' => $game->gameDetails?->trailer_youtube_id,
+        ]);
+    }
+
+    private function applyGameFilter(Builder $q, string $type, string $value): Builder
+    {
+        return match ($type) {
+            'genre'              => $q->whereHas('genres', fn($g) => $g->where('slug', $value)),
+            'developer'          => $q->whereHas('gameDetails', fn($g) => $g->where('developer', str_replace('-', ' ', $value))),
+            'publisher'          => $q->whereHas('gameDetails', fn($g) => $g->where('publisher',  str_replace('-', ' ', $value))),
+            'franchise'          => $q->whereHas('gameDetails', fn($g) => $g->where('franchise',  str_replace('-', ' ', $value))),
+            'theme'              => $q->whereHas('gameDetails', fn($g) => $g->whereRaw("JSON_SEARCH(LOWER(themes), 'one', ?) IS NOT NULL",              [strtolower(str_replace('-', ' ', $value))])),
+            'game_mode'          => $q->whereHas('gameDetails', fn($g) => $g->whereRaw("JSON_SEARCH(LOWER(game_modes), 'one', ?) IS NOT NULL",          [strtolower(str_replace('-', ' ', $value))])),
+            'player_perspective' => $q->whereHas('gameDetails', fn($g) => $g->whereRaw("JSON_SEARCH(LOWER(player_perspectives), 'one', ?) IS NOT NULL", [strtolower(str_replace('-', ' ', $value))])),
+            default              => $q,
+        };
     }
 
     private function followerReviewMap(array $followedIds, array $productIds): \Illuminate\Support\Collection

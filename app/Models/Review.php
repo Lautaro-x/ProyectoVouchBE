@@ -23,7 +23,7 @@ class Review extends Model
     ];
 
     protected $casts = [
-        'weighted_score' => 'integer',
+        'weighted_score' => 'decimal:1',
         'banned_at'      => 'datetime',
     ];
 

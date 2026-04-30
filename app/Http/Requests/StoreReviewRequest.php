@@ -19,7 +19,7 @@ class StoreReviewRequest extends FormRequest
             'product_id'           => 'required|exists:Products,id',
             'body'                 => array_filter([
                 'nullable', 'string', 'max:2000',
-                $canLink ? null : 'not_regex:/(https?:\/\/|www\.)\S+/i',
+                $canLink ? null : 'not_regex:/(https?:\/\/|www\.|javascript:)[^\s]*/i',
             ]),
             'scores'               => 'required|array|min:1',
             'scores.*.category_id' => 'required|exists:Categories,id',

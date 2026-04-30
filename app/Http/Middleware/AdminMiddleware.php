@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -12,7 +13,7 @@ class AdminMiddleware
     {
         $user = $request->user();
 
-        if ($user?->role !== 'admin' || $user->banned_at !== null) {
+        if ($user?->role !== UserRole::Admin->value || $user->banned_at !== null) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 

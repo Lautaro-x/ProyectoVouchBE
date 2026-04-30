@@ -20,14 +20,14 @@ class PlatformController extends Controller
 
         $query = Platform::query();
 
-        if ($request->search) {
-            $query->where('name', 'like', "%{$request->search}%");
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->input('search') . '%');
         }
-        if ($request->type) {
-            $query->where('type', $request->type);
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
         }
 
-        if ($request->all === '1') {
+        if ($request->input('all') === '1') {
             return response()->json($query->orderBy($sortBy, $sortDir)->get());
         }
 

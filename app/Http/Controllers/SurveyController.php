@@ -15,15 +15,17 @@ class SurveyController extends Controller
 
     public function active(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $now  = now();
+        $user           = $request->user();
+        $now            = now();
+        $userAudiences  = $this->resolveAudiences($user);
 
         $surveys = Survey::where('starts_at', '<=', $now)
             ->where('ends_at', '>=', $now)
+            ->whereIn('audience', $userAudiences)
             ->whereDoesntHave('responses', fn($q) => $q->where('user_id', $user->id))
             ->with('options')
             ->get()
-            ->filter(fn($s) => $s->hasAllTranslations() && $this->userMatchesAudience($user, $s->audience))
+            ->filter(fn($s) => $s->hasAllTranslations())
             ->values()
             ->map(fn($s) => [
                 'id'       => $s->id,
