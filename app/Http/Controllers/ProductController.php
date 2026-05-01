@@ -44,7 +44,7 @@ class ProductController extends Controller
                 fn($q) => $this->applyGameFilter($q, $request->input('filter_type'), $request->input('filter_value'))
             )
             ->orderByDesc('latest_release')
-            ->paginate(12);
+            ->paginate((int) $request->input('per_page', 24));
 
         $followedIds = [];
         if ($user = $request->user('sanctum')) {
