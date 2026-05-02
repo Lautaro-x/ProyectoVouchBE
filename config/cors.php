@@ -21,7 +21,7 @@ return [
 
     'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:4200')],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ['/^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/'],
 
     'allowed_headers' => ['Content-Type', 'Authorization', 'Accept'],
 
