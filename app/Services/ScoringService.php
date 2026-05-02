@@ -50,18 +50,19 @@ class ScoringService
 
     public function calculateLetterGrade(float $score): string
     {
-        if ($score >= 10.0) return 'S';
-
-        $integer    = (int) floor($score);
-        $hasDecimal = $score > $integer;
-
         return match(true) {
-            $integer >= 9 => $hasDecimal ? 'A+' : 'A',
-            $integer >= 8 => $hasDecimal ? 'B+' : 'B',
-            $integer >= 7 => $hasDecimal ? 'C+' : 'C',
-            $integer >= 6 => $hasDecimal ? 'D+' : 'D',
-            $integer >= 5 => $hasDecimal ? 'E+' : 'E',
-            default       => 'F',
+            $score >= 10.0 => 'S',
+            $score >= 9.5  => 'A+',
+            $score >= 9.0  => 'A',
+            $score >= 8.5  => 'B+',
+            $score >= 8.0  => 'B',
+            $score >= 7.5  => 'C+',
+            $score >= 7.0  => 'C',
+            $score >= 6.5  => 'D+',
+            $score >= 6.0  => 'D',
+            $score >= 5.5  => 'E+',
+            $score >= 5.0  => 'E',
+            default        => 'F',
         };
     }
 

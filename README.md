@@ -1219,6 +1219,8 @@ Ver "Convención de nombres → Deuda técnica" en la sección de Base de datos.
 
 ## Novedades recientes
 
+- **Escala de letras rediseñada (2026-05-02):** `ScoringService::calculateLetterGrade()` reescrita con pasos de 0.5 en lugar de entero + decimal. La escala anterior hacía prácticamente imposible obtener una nota "pura" (C, B, A…) porque requería un score exactamente entero. Nueva escala: S=10.0, A+=9.5–9.9, A=9.0–9.4, B+=8.5–8.9, B=8.0–8.4, C+=7.5–7.9, C=7.0–7.4, D+=6.5–6.9, D=6.0–6.4, E+=5.5–5.9, E=5.0–5.4, F=<5.0. Ejecutar `php artisan scores:recalculate` para actualizar las notas ya almacenadas. Los tests de frontera en `ScoringServiceTest` deben actualizarse en consecuencia.
+
 - **Paginación configurable en listado de juegos (2026-05-01):** `ProductController::index()` acepta ahora el parámetro `per_page` desde el request (`$request->input('per_page', 24)`). El valor por defecto pasa de 12 a 24 para alinearse con el nuevo diseño del frontend. El frontend envía `per_page` explícitamente en cada llamada.
 
 - Sincronización masiva Early Access: campo `igdb_synced_at` (timestamp nullable) en `Products`; `ProductImportService` lo actualiza a `now()` en cada sync; nuevo endpoint `POST /admin/igdb/sync-early-access` filtra juegos con `GameDetails.status = 4` cuyo `igdb_synced_at` sea null o tenga más de 1 semana, límite 1000, llama a IGDB y actualiza; botón "Early Access ↻" en el admin de productos muestra el reporte habitual de importación.
