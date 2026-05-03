@@ -30,6 +30,9 @@ class BadgeService
         $badges = $user->badges ?? [];
         if (!in_array($badge, $badges, true)) {
             $user->badges = [...$badges, $badge];
+            $awardedAt          = $user->badges_awarded_at ?? [];
+            $awardedAt[$badge]  = now()->toIso8601String();
+            $user->badges_awarded_at = $awardedAt;
             $user->save();
             Cache::forget("badge_progress_{$user->id}");
         }
@@ -40,6 +43,9 @@ class BadgeService
         $user->badges = array_values(
             array_filter($user->badges ?? [], fn($b) => $b !== $badge)
         );
+        $awardedAt = $user->badges_awarded_at ?? [];
+        unset($awardedAt[$badge]);
+        $user->badges_awarded_at = $awardedAt;
         $user->save();
         Cache::forget("badge_progress_{$user->id}");
     }
@@ -53,27 +59,30 @@ class BadgeService
 
     private function buildProgress(User $user): array
     {
-        $awarded   = $user->badges ?? [];
-        $reviews   = $user->reviews()->whereNull('banned_at')->count();
-        $followers = $user->followers()->count();
+        $awarded       = $user->badges ?? [];
+        $awardedAtDates = $user->badges_awarded_at ?? [];
+        $reviews       = $user->reviews()->whereNull('banned_at')->count();
+        $followers     = $user->followers()->count();
 
         $result = [];
 
         foreach (self::REVIEW_MILESTONES as $threshold => $badge) {
             $result[$badge->value] = [
-                'current'   => min($reviews, $threshold),
-                'threshold' => $threshold,
-                'awarded'   => in_array($badge->value, $awarded, true),
-                'claimable' => $reviews >= $threshold && !in_array($badge->value, $awarded, true),
+                'current'    => min($reviews, $threshold),
+                'threshold'  => $threshold,
+                'awarded'    => in_array($badge->value, $awarded, true),
+                'claimable'  => $reviews >= $threshold && !in_array($badge->value, $awarded, true),
+                'awarded_at' => $awardedAtDates[$badge->value] ?? null,
             ];
         }
 
         foreach (self::FOLLOWER_MILESTONES as $threshold => $badge) {
             $result[$badge->value] = [
-                'current'   => min($followers, $threshold),
-                'threshold' => $threshold,
-                'awarded'   => in_array($badge->value, $awarded, true),
-                'claimable' => $followers >= $threshold && !in_array($badge->value, $awarded, true),
+                'current'    => min($followers, $threshold),
+                'threshold'  => $threshold,
+                'awarded'    => in_array($badge->value, $awarded, true),
+                'claimable'  => $followers >= $threshold && !in_array($badge->value, $awarded, true),
+                'awarded_at' => $awardedAtDates[$badge->value] ?? null,
             ];
         }
 
@@ -90,10 +99,11 @@ class BadgeService
             ->exists();
 
         $result[$fastBadge->value] = [
-            'current'   => $isFirstReviewer ? 1 : 0,
-            'threshold' => 1,
-            'awarded'   => in_array($fastBadge->value, $awarded, true),
-            'claimable' => $isFirstReviewer && !in_array($fastBadge->value, $awarded, true),
+            'current'    => $isFirstReviewer ? 1 : 0,
+            'threshold'  => 1,
+            'awarded'    => in_array($fastBadge->value, $awarded, true),
+            'claimable'  => $isFirstReviewer && !in_array($fastBadge->value, $awarded, true),
+            'awarded_at' => $awardedAtDates[$fastBadge->value] ?? null,
         ];
 
         return $result;
