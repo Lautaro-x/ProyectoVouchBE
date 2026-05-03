@@ -12,17 +12,32 @@ class UserReviewController extends Controller
         $request->validate([
             'search' => 'nullable|string|max:100',
             'page'   => 'nullable|integer|min:1',
+            'sort'   => 'nullable|string|in:date_desc,date_asc,score_desc,score_asc,title_asc',
+            'grade'  => 'nullable|string|max:3',
         ]);
 
-        $reviews = $request->user()
+        $query = $request->user()
             ->reviews()
             ->whereHas('product', fn($q) => $q->where('type', 'game'))
             ->with(['product:id,type,title,slug,cover_image'])
-            ->when($request->search, function ($q, $search) {
-                $q->whereHas('product', fn($q2) => $q2->where('title', 'like', "%{$search}%"));
-            })
-            ->orderByDesc('created_at')
-            ->paginate(24);
+            ->when($request->filled('search'), fn($q) =>
+                $q->whereHas('product', fn($q2) => $q2->where('title', 'like', "%{$request->input('search')}%"))
+            )
+            ->when($request->filled('grade'), fn($q) =>
+                $q->where('letter_grade', $request->input('grade'))
+            );
+
+        match ($request->input('sort', 'date_desc')) {
+            'date_asc'   => $query->orderBy('reviews.created_at'),
+            'score_desc' => $query->orderByDesc('reviews.weighted_score'),
+            'score_asc'  => $query->orderBy('reviews.weighted_score'),
+            'title_asc'  => $query->join('Products', 'reviews.product_id', '=', 'Products.id')
+                                   ->select('reviews.*')
+                                   ->orderBy('Products.title'),
+            default      => $query->orderByDesc('reviews.created_at'),
+        };
+
+        $reviews = $query->paginate(24);
 
         return response()->json([
             'data'         => $reviews->map(fn($r) => [
