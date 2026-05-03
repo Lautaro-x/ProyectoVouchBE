@@ -14,6 +14,8 @@ class UserConsentController extends Controller
         return response()->json([
             'show_email'             => (bool) $user->show_email,
             'consent_follower_score' => (bool) $user->consent_follower_score,
+            'notify_email'           => (bool) ($user->notify_email ?? true),
+            'session_persistent'     => (bool) $user->session_persistent,
             'is_verified'            => in_array('verificado', $user->badges ?? []),
         ]);
     }
@@ -23,10 +25,12 @@ class UserConsentController extends Controller
         $request->validate([
             'show_email'             => 'sometimes|boolean',
             'consent_follower_score' => 'sometimes|boolean',
+            'notify_email'           => 'sometimes|boolean',
+            'session_persistent'     => 'sometimes|boolean',
         ]);
 
         $user = $request->user();
-        $data = $request->only(['show_email', 'consent_follower_score']);
+        $data = $request->only(['show_email', 'consent_follower_score', 'notify_email', 'session_persistent']);
 
         $isVerified = in_array('verificado', $user->badges ?? []);
         if (!$isVerified) {

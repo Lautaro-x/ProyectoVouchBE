@@ -27,6 +27,8 @@ class User extends Authenticatable
         'ban_reason',
         'show_email',
         'consent_follower_score',
+        'notify_email',
+        'session_persistent',
         'social_links',
         'card_big_bg',
         'card_mid_bg',
@@ -46,6 +48,8 @@ class User extends Authenticatable
         'banned_at'         => 'datetime',
         'show_email'             => 'boolean',
         'consent_follower_score' => 'boolean',
+        'notify_email'           => 'boolean',
+        'session_persistent'     => 'boolean',
         'social_links'           => 'array',
     ];
 
