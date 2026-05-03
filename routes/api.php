@@ -11,6 +11,7 @@ use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\PublicCardController;
 use App\Http\Controllers\UserConsentController;
 use App\Http\Controllers\UserFollowerController;
+use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\VerificationRequestController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\BadgeController;
@@ -46,6 +47,7 @@ Route::middleware(['auth:sanctum', 'not.banned'])->group(function () {
     Route::get('/user/profile/card', [UserProfileController::class, 'cardData']);
     Route::get('/user/reviews/games', [UserReviewController::class, 'games']);
     Route::get('/user/followers', [UserFollowerController::class, 'index']);
+    Route::get('/user/following', [UserFollowingController::class, 'index']);
     Route::get('/user/verify-request', [VerificationRequestController::class, 'show']);
     Route::post('/user/verify-request', [VerificationRequestController::class, 'store'])->middleware('throttle:5,1');
     Route::get('/user/badges', [BadgeController::class, 'progress']);
